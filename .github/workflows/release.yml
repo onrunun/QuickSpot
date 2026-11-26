@@ -132,3 +132,40 @@ jobs:
               --generate-notes \
               "${PRERELEASE_FLAG[@]}"
           fi
+
+      - name: Update Homebrew Tap Cask (optional)
+        if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' && vars.HOMEBREW_TAP_REPO != '' && steps.meta.outputs.prerelease != 'true' }}
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          HOMEBREW_TAP_REPO: ${{ vars.HOMEBREW_TAP_REPO }}
+          RELEASE_VERSION: ${{ steps.meta.outputs.version }}
+          SOURCE_REPO: ${{ github.repository }}
+        run: |
+          DMG_PATH="$(ls build.noindex/dist/*.dmg | head -n 1)"
+          DMG_FILE="$(basename "$DMG_PATH")"
+          DMG_SHA256="$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')"
+
+          AUTH_HEADER="$(printf 'x-access-token:%s' "$HOMEBREW_TAP_TOKEN" | base64 | tr -d '\n')"
+          TAP_DIR="$RUNNER_TEMP/homebrew-tap"
+          rm -rf "$TAP_DIR"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${AUTH_HEADER}" \
+            clone --depth 1 "https://github.com/${HOMEBREW_TAP_REPO}.git" "$TAP_DIR"
+
+          ./scripts/render-homebrew-cask.sh \
+            --version "$RELEASE_VERSION" \
+            --sha256 "$DMG_SHA256" \
+            --repo "$SOURCE_REPO" \
+            --dmg-name "$DMG_FILE" \
+            --output "$TAP_DIR/Casks/quickspot.rb"
+
+          cd "$TAP_DIR"
+          if git diff --quiet && [[ -z "$(git status --porcelain)" ]]; then
+            echo "Homebrew cask already up to date."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/quickspot.rb
+          git commit -m "chore(quickspot): bump to v${RELEASE_VERSION}"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${AUTH_HEADER}" push origin HEAD
