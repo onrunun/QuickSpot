@@ -110,12 +110,51 @@ final class SemanticSearchTests: XCTestCase {
     }
 
     func testTurkishQueryRestorerRestoresDiacriticsWithoutBreakingEnglish() {
+        let validTurkish: Set<String> = [
+            "kopek", "köpek", "beyaz", "araba",
+            "çocuk", "çoçuk", "kırmızı", "gülen",
+            "dog", "cat", "çat", "safari"
+        ]
+        let validEnglish: Set<String> = ["dog", "cat", "safari"]
+        let mockGuesses: [String: [String]] = [
+            // Mirrors macOS 15 AppleSpell returning the 2-edit typo before the 1-edit valid word.
+            "cocuk": ["çoçuk", "çocuk"],
+            "gulen": ["gülen", "gelen"],
+            "kirmizi": ["kimizi", "karmizi"]
+        ]
+
+        let isValid: (String, String) -> Bool = { word, lang in
+            lang == "tr" ? validTurkish.contains(word) : validEnglish.contains(word)
+        }
+        let guesses: (String, String) -> [String] = { word, lang in
+            lang == "tr" ? (mockGuesses[word] ?? []) : []
+        }
+
         L10n.withLanguage(.tr) {
-            XCTAssertEqual(TurkishQueryRestorer.restoredVariant(for: "kopek"), "köpek")
-            XCTAssertEqual(TurkishQueryRestorer.restoredVariant(for: "beyaz kopek"), "beyaz köpek")
-            XCTAssertEqual(TurkishQueryRestorer.restoredVariant(for: "cocuk"), "çocuk")
-            XCTAssertEqual(TurkishQueryRestorer.restoredVariant(for: "kirmizi araba"), "kırmızı araba")
-            XCTAssertEqual(TurkishQueryRestorer.restoredVariant(for: "gulen cocuk"), "gülen çocuk")
+            XCTAssertEqual(TurkishQueryRestorer.restoredVariant(for: "kopek", isWordValid: isValid, guesses: guesses), "köpek")
+            XCTAssertEqual(TurkishQueryRestorer.restoredVariant(for: "beyaz kopek", isWordValid: isValid, guesses: guesses), "beyaz köpek")
+            XCTAssertEqual(TurkishQueryRestorer.restoredVariant(for: "cocuk", isWordValid: isValid, guesses: guesses), "çocuk")
+            XCTAssertEqual(TurkishQueryRestorer.restoredVariant(for: "kirmizi araba", isWordValid: isValid, guesses: guesses), "kırmızı araba")
+            XCTAssertEqual(TurkishQueryRestorer.restoredVariant(for: "gulen cocuk", isWordValid: isValid, guesses: guesses), "gülen çocuk")
+            XCTAssertNil(TurkishQueryRestorer.restoredVariant(for: "köpek", isWordValid: isValid, guesses: guesses))
+            XCTAssertNil(TurkishQueryRestorer.restoredVariant(for: "dog", isWordValid: isValid, guesses: guesses))
+            XCTAssertNil(TurkishQueryRestorer.restoredVariant(for: "cat", isWordValid: isValid, guesses: guesses))
+            XCTAssertNil(TurkishQueryRestorer.restoredVariant(for: "safari", isWordValid: isValid, guesses: guesses))
+
+            // Even if guesses only proposes a 2-edit form (`çoçuk`), a valid 1-edit word (`çocuk`) must win.
+            XCTAssertEqual(
+                TurkishQueryRestorer.restoredVariant(
+                    for: "cocuk",
+                    isWordValid: isValid,
+                    guesses: { word, lang in lang == "tr" && word == "cocuk" ? ["çoçuk"] : [] }
+                ),
+                "çocuk"
+            )
+
+            // Live NSSpellChecker sanity checks that remain stable across macOS 14/15/26 system dictionaries.
+            if let liveKopek = TurkishQueryRestorer.restoredVariant(for: "kopek") {
+                XCTAssertEqual(VisionTextExtractor.normalizeForSearch(liveKopek), "kopek")
+            }
             XCTAssertNil(TurkishQueryRestorer.restoredVariant(for: "köpek"))
             XCTAssertNil(TurkishQueryRestorer.restoredVariant(for: "dog"))
             XCTAssertNil(TurkishQueryRestorer.restoredVariant(for: "cat"))

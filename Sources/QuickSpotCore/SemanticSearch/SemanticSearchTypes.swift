@@ -213,18 +213,56 @@ enum TurkishQueryRestorer {
 
         lock.lock()
         let checker = NSSpellChecker.shared
+        let result = restoredVariant(
+            forWords: words,
+            isWordValid: { candidate, language in
+                checker.checkSpelling(
+                    of: candidate,
+                    startingAt: 0,
+                    language: language,
+                    wrap: false,
+                    inSpellDocumentWithTag: 0,
+                    wordCount: nil
+                ).location == NSNotFound
+            },
+            guesses: { candidate, language in
+                let range = NSRange(location: 0, length: (candidate as NSString).length)
+                return checker.guesses(forWordRange: range, in: candidate, language: language, inSpellDocumentWithTag: 0) ?? []
+            }
+        )
+        storeCacheLocked(key: key, value: result)
+        lock.unlock()
+        return result
+    }
+
+    /// Deterministic testable entry point accepting custom spell-checker closures.
+    static func restoredVariant(
+        for query: String,
+        isWordValid: (_ word: String, _ language: String) -> Bool,
+        guesses: (_ word: String, _ language: String) -> [String]
+    ) -> String? {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 80 else { return nil }
+        guard shouldAttemptTurkishRestoration() else { return nil }
+        let words = trimmed.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        guard !words.isEmpty, words.count <= 8 else { return nil }
+        return restoredVariant(forWords: words, isWordValid: isWordValid, guesses: guesses)
+    }
+
+    private static func restoredVariant(
+        forWords words: [String],
+        isWordValid: (_ word: String, _ language: String) -> Bool,
+        guesses: (_ word: String, _ language: String) -> [String]
+    ) -> String? {
         var changed = false
         let restoredWords = words.map { word -> String in
-            if let restored = restoreWord(word, using: checker) {
+            if let restored = restoreWord(word, isWordValid: isWordValid, guesses: guesses) {
                 changed = true
                 return restored
             }
             return word
         }
-        let result = changed ? restoredWords.joined(separator: " ") : nil
-        storeCacheLocked(key: key, value: result)
-        lock.unlock()
-        return result
+        return changed ? restoredWords.joined(separator: " ") : nil
     }
 
     private static func cacheKey(for trimmed: String) -> String {
@@ -253,38 +291,57 @@ enum TurkishQueryRestorer {
         return Locale.preferredLanguages.contains { AppLanguage.match(identifier: $0) == .tr }
     }
 
-    private static func restoreWord(_ word: String, using checker: NSSpellChecker) -> String? {
+    private static func diacriticEditCount(from ascii: String, to candidate: String) -> Int? {
+        guard ascii.count == candidate.count else { return nil }
+        var edits = 0
+        for (a, c) in zip(ascii, candidate) {
+            if a == c { continue }
+            if asciiToTurkish[a] == c {
+                edits += 1
+            } else {
+                return nil
+            }
+        }
+        return edits > 0 ? edits : nil
+    }
+
+    private static func restoreWord(
+        _ word: String,
+        isWordValid: (_ word: String, _ language: String) -> Bool,
+        guesses: (_ word: String, _ language: String) -> [String]
+    ) -> String? {
         let lower = word.lowercased()
         guard lower.count >= 3, lower.count <= 14 else { return nil }
         guard lower.rangeOfCharacter(from: turkishDiacritics) == nil else { return nil }
         guard lower.allSatisfy({ $0.isLetter && $0.isASCII }) else { return nil }
 
-        // If macOS Turkish spellchecker flags the ASCII spelling as misspelled, prefer its top diacritic-matching guess.
-        let miss = checker.checkSpelling(of: lower, startingAt: 0, language: "tr", wrap: false, inSpellDocumentWithTag: 0, wordCount: nil)
-        if miss.location != NSNotFound {
-            let range = NSRange(location: 0, length: (lower as NSString).length)
-            if let guesses = checker.guesses(forWordRange: range, in: lower, language: "tr", inSpellDocumentWithTag: 0) {
-                for guess in guesses {
-                    let gLower = guess.lowercased(with: Locale(identifier: "tr_TR"))
-                    if gLower != lower && VisionTextExtractor.normalizeForSearch(gLower) == lower {
-                        return gLower
-                    }
+        let trValid = isWordValid(lower, "tr")
+        var bestCandidate: String?
+        var bestEdits = Int.max
+
+        // If the Turkish spellchecker flags the ASCII spelling as misspelled, prefer its minimal-edit diacritic guess.
+        if !trValid {
+            for guess in guesses(lower, "tr") {
+                let gLower = guess.lowercased(with: Locale(identifier: "tr_TR"))
+                guard let edits = diacriticEditCount(from: lower, to: gLower), edits < bestEdits else { continue }
+                bestCandidate = gLower
+                bestEdits = edits
+                if bestEdits == 1 {
+                    return bestCandidate
                 }
             }
         }
 
-        // Fallback for ASCII forms accepted by the checker (e.g. `kopek`, `cocuk`, `kirmizi`): pick minimal valid diacritic edit.
+        // Skip unambiguous short English words like `dog` or `cat` so English queries stay crisp.
+        if bestCandidate == nil && trValid && lower.count <= 4 && isWordValid(lower, "en") {
+            return nil
+        }
+
+        // Fallback for ASCII forms accepted by the checker (or when a multi-edit guess can be beaten by a 1-edit valid word).
         let chars = Array(lower)
         let positions = chars.indices.filter { asciiToTurkish[chars[$0]] != nil }
-        guard !positions.isEmpty, positions.count <= 5 else { return nil }
+        guard !positions.isEmpty, positions.count <= 5 else { return bestCandidate }
 
-        // Skip unambiguous common English words like `dog`, `cat`, `white`, `black` so English queries stay crisp.
-        let enMiss = checker.checkSpelling(of: lower, startingAt: 0, language: "en", wrap: false, inSpellDocumentWithTag: 0, wordCount: nil)
-        let isCommonEnglish = (enMiss.location == NSNotFound && miss.location == NSNotFound && lower.count <= 4)
-        if isCommonEnglish { return nil }
-
-        var bestCandidate: String?
-        var bestEdits = Int.max
         let limit = 1 << positions.count
         for mask in 1..<limit {
             let edits = mask.nonzeroBitCount
@@ -294,8 +351,7 @@ enum TurkishQueryRestorer {
                 copy[idx] = asciiToTurkish[copy[idx]]!
             }
             let cand = String(copy)
-            let candMiss = checker.checkSpelling(of: cand, startingAt: 0, language: "tr", wrap: false, inSpellDocumentWithTag: 0, wordCount: nil)
-            if candMiss.location == NSNotFound {
+            if isWordValid(cand, "tr") {
                 bestCandidate = cand
                 bestEdits = edits
             }
