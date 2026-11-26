@@ -1,0 +1,25 @@
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+    authors:
+      - dependabot
+  categories:
+    - title: Features
+      labels:
+        - enhancement
+        - feature
+    - title: Localization & Translations
+      labels:
+        - localization
+        - i18n
+    - title: Security & Privacy
+      labels:
+        - security
+        - privacy
+    - title: Bug Fixes
+      labels:
+        - bug
+    - title: Maintenance
+      labels:
+        - '*'

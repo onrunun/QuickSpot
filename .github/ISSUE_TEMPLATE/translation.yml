@@ -1,0 +1,18 @@
+name: Translation / New Language
+description: Request a new language or report a translation improvement
+labels: ["localization"]
+body:
+  - type: input
+    id: language
+    attributes:
+      label: Language name & BCP-47 code
+      placeholder: e.g. Korean (ko) or Italian (it)
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details or suggested corrections
+      description: Mention specific UI labels, system command aliases, or if you plan to open a PR.
+    validations:
+      required: true

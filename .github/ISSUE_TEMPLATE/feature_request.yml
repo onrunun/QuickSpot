@@ -1,0 +1,24 @@
+name: Feature Request
+description: Propose a new feature or workflow improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or motivation
+      description: What workflow or pain point would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How should it work in QuickSpot?
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Local-first check
+      options:
+        - label: This feature can work 100% locally without cloud dependencies or telemetry.

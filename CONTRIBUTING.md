@@ -20,6 +20,18 @@ Build the standalone `.app` bundle:
 ./build.sh
 ```
 
+Run the privacy, plist, and localization syntax gate (also executed in CI):
+
+```bash
+./scripts/check-privacy.sh
+```
+
+Package a release (`DMG`, `ZIP`, and `SHA256SUMS.txt`):
+
+```bash
+./scripts/package-release.sh --universal --version 1.0.0
+```
+
 ## Architecture
 
 QuickSpot follows a clean vertical-slice layout with zero external dependencies:

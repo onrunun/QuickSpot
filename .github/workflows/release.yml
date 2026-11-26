@@ -1,0 +1,134 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version without leading v (e.g. 1.0.0)'
+        required: true
+        type: string
+      universal:
+        description: 'Build universal (Apple Silicon + Intel) binary'
+        required: false
+        default: true
+        type: boolean
+      prerelease:
+        description: 'Mark GitHub Release as pre-release'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Publish macOS Release
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine release version & tag
+        id: meta
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_UNIVERSAL: ${{ inputs.universal }}
+          INPUT_PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            VERSION="${INPUT_VERSION#v}"
+            TAG="v${VERSION}"
+            UNIVERSAL="${INPUT_UNIVERSAL:-true}"
+            PRERELEASE="${INPUT_PRERELEASE:-false}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#v}"
+            UNIVERSAL="true"
+            if [[ "$VERSION" == *-* ]]; then
+              PRERELEASE="true"
+            else
+              PRERELEASE="false"
+            fi
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "universal=$UNIVERSAL" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Run privacy gate & unit tests
+        run: |
+          ./scripts/check-privacy.sh
+          swift test
+
+      - name: Import Apple Developer ID certificate (optional)
+        if: ${{ secrets.APPLE_CERT_P12_BASE64 != '' && secrets.APPLE_SIGN_IDENTITY != '' }}
+        env:
+          APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/quickspot-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          CERT_PATH="$RUNNER_TEMP/dev-id.p12"
+
+          printf '%s' "$APPLE_CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$APPLE_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          rm -f "$CERT_PATH"
+
+      - name: Build and package DMG + ZIP + SHA256
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY || '-' }}
+        run: |
+          ARGS=(--version "${{ steps.meta.outputs.version }}" --build-number "${GITHUB_RUN_NUMBER}")
+          if [[ "${{ steps.meta.outputs.universal }}" == "true" ]]; then
+            ARGS+=(--universal)
+          fi
+          ./scripts/package-release.sh "${ARGS[@]}"
+
+      - name: Notarize and staple DMG (optional)
+        if: ${{ secrets.APPLE_NOTARY_KEY_BASE64 != '' && secrets.APPLE_NOTARY_KEY_ID != '' && secrets.APPLE_NOTARY_ISSUER_ID != '' }}
+        env:
+          APPLE_NOTARY_KEY_BASE64: ${{ secrets.APPLE_NOTARY_KEY_BASE64 }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+        run: |
+          KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s' "$APPLE_NOTARY_KEY_BASE64" | base64 --decode > "$KEY_PATH"
+          DMG_FILE="$(ls build.noindex/dist/*.dmg | head -n 1)"
+          xcrun notarytool submit "$DMG_FILE" \
+            --key "$KEY_PATH" \
+            --key-id "$APPLE_NOTARY_KEY_ID" \
+            --issuer "$APPLE_NOTARY_ISSUER_ID" \
+            --wait
+          xcrun stapler staple "$DMG_FILE"
+          rm -f "$KEY_PATH"
+          (
+            cd build.noindex/dist
+            shasum -a 256 *.zip *.dmg > SHA256SUMS.txt
+          )
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          PRERELEASE_FLAG=()
+          if [[ "${{ steps.meta.outputs.prerelease }}" == "true" ]]; then
+            PRERELEASE_FLAG+=(--prerelease)
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" build.noindex/dist/* --clobber
+          else
+            gh release create "$TAG" build.noindex/dist/* \
+              --title "QuickSpot $TAG" \
+              --generate-notes \
+              "${PRERELEASE_FLAG[@]}"
+          fi
