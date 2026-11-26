@@ -146,7 +146,28 @@ gh api -X PUT "repos/$REPO/private-vulnerability-reporting" >/dev/null 2>&1 \
   && echo "OK: Private Vulnerability Reporting enabled." \
   || echo "NOTE: Could not enable Private Vulnerability Reporting (check repo visibility)."
 
-# 3. Upsert branch and tag rulesets idempotently
+# 3. Provision standard color-coded labels used by Issue templates, PR auto-labeler, and Release notes
+ensure_label() {
+  local name="$1"
+  local color="$2"
+  local desc="$3"
+  gh label create "$name" --repo "$REPO" --color "$color" --description "$desc" --force >/dev/null
+}
+
+ensure_label "localization" "0E8A16" "Translations and multi-language support"
+ensure_label "i18n" "0E8A16" "Internationalization engine and locale support"
+ensure_label "security" "B60205" "Security hardening and vulnerability fixes"
+ensure_label "privacy" "D93F0B" "Local-only privacy protections"
+ensure_label "core" "1D76DB" "QuickSpotCore search, OCR, and actions"
+ensure_label "ui" "5319E7" "macOS AppKit/SwiftUI interface"
+ensure_label "ci" "BFD4F2" "GitHub Actions, scripts, and build tooling"
+ensure_label "docs" "0075CA" "Documentation improvements"
+ensure_label "ignore-for-release" "EDEDED" "Exclude PR from auto-generated release notes"
+ensure_label "pinned" "FBCA04" "Exempt from automatic stale closing"
+ensure_label "stale" "CCCCCC" "Inactive issue or pull request"
+echo "OK: Standard repository labels synchronized."
+
+# 4. Upsert branch and tag rulesets idempotently
 upsert_ruleset() {
   local name="$1"
   local payload="$2"

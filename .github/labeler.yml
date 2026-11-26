@@ -1,0 +1,40 @@
+localization:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'Sources/QuickSpotCore/Localization/**'
+          - 'Sources/QuickSpotCore/Resources/**/*.strings'
+
+security:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'SECURITY.md'
+          - 'scripts/check-privacy.sh'
+          - 'Sources/QuickSpotCore/Clipboard/**'
+          - 'Sources/QuickSpotCore/FileSearch/FileMetadataInspector.swift'
+          - 'Sources/QuickSpotCore/QuickActions/WebAndTerminalAction.swift'
+          - 'Sources/QuickSpotCore/QuickActions/SystemCommandExecutor.swift'
+
+core:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'Sources/QuickSpotCore/**'
+          - 'Tests/**'
+
+ui:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'Sources/QuickSpotApp/**'
+          - 'Resources/**'
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+          - 'scripts/**'
+          - 'build.sh'
+          - 'Package.swift'
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '*.md'
