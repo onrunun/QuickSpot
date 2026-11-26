@@ -56,11 +56,16 @@ jobs:
           swift test
 
       - name: Import Apple Developer ID certificate (optional)
-        if: ${{ secrets.APPLE_CERT_P12_BASE64 != '' && secrets.APPLE_SIGN_IDENTITY != '' }}
         env:
           APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
           APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          APPLE_SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
         run: |
+          if [[ -z "${APPLE_CERT_P12_BASE64}" || -z "${APPLE_SIGN_IDENTITY}" ]]; then
+            echo "Skipping Developer ID certificate import (signing secrets not configured; using ad-hoc signing)."
+            exit 0
+          fi
+
           KEYCHAIN_PATH="$RUNNER_TEMP/quickspot-signing.keychain-db"
           KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
           CERT_PATH="$RUNNER_TEMP/dev-id.p12"
@@ -83,12 +88,16 @@ jobs:
             --build-number "${GITHUB_RUN_NUMBER}"
 
       - name: Notarize and staple DMG (optional)
-        if: ${{ secrets.APPLE_NOTARY_KEY_BASE64 != '' && secrets.APPLE_NOTARY_KEY_ID != '' && secrets.APPLE_NOTARY_ISSUER_ID != '' }}
         env:
           APPLE_NOTARY_KEY_BASE64: ${{ secrets.APPLE_NOTARY_KEY_BASE64 }}
           APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
           APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
         run: |
+          if [[ -z "${APPLE_NOTARY_KEY_BASE64}" || -z "${APPLE_NOTARY_KEY_ID}" || -z "${APPLE_NOTARY_ISSUER_ID}" ]]; then
+            echo "Skipping notarization (notary secrets not configured)."
+            exit 0
+          fi
+
           KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
           printf '%s' "$APPLE_NOTARY_KEY_BASE64" | base64 --decode > "$KEY_PATH"
           DMG_FILE="$(ls build.noindex/dist/*.dmg | head -n 1)"
@@ -123,13 +132,17 @@ jobs:
           fi
 
       - name: Update Homebrew Tap Cask (optional)
-        if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' && vars.HOMEBREW_TAP_REPO != '' && steps.meta.outputs.prerelease != 'true' }}
+        if: steps.meta.outputs.prerelease != 'true'
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           HOMEBREW_TAP_REPO: ${{ vars.HOMEBREW_TAP_REPO }}
           RELEASE_VERSION: ${{ steps.meta.outputs.version }}
           SOURCE_REPO: ${{ github.repository }}
         run: |
+          if [[ -z "${HOMEBREW_TAP_TOKEN}" || -z "${HOMEBREW_TAP_REPO}" ]]; then
+            echo "Skipping Homebrew Tap update (HOMEBREW_TAP_TOKEN / HOMEBREW_TAP_REPO not configured)."
+            exit 0
+          fi
           DMG_PATH="$(ls build.noindex/dist/*.dmg | head -n 1)"
           DMG_FILE="$(basename "$DMG_PATH")"
           DMG_SHA256="$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')"
