@@ -98,13 +98,26 @@ Want to add another language? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
-## Build from Source
+## Installation
 
-### Requirements
-- Apple Silicon Mac (`arm64`) running macOS 14.0 (Sonoma) or later
-- Xcode Command Line Tools or Xcode 16+ (Swift 6.0)
+Requires an Apple Silicon Mac (`arm64`) running **macOS 14.0 (Sonoma)** or later.
 
-### Build & Install `.app`
+### Option 1: Homebrew Cask
+
+```bash
+brew tap onrunun/tap
+brew install --cask quickspot
+```
+
+> On Homebrew 7+, if prompted to trust third-party taps, run `brew trust onrunun/tap` first.
+
+### Option 2: Direct Download (`.dmg`)
+
+Download the latest Apple Silicon `.dmg` and verify checksums from [GitHub Releases](https://github.com/onrunun/QuickSpot/releases/latest).
+
+### Option 3: Build from Source
+
+Requires Xcode Command Line Tools or Xcode 16+ (Swift 6.0).
 
 ```bash
 git clone https://github.com/onrunun/QuickSpot.git

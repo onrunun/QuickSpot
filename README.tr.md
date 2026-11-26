@@ -43,13 +43,26 @@ English · Türkçe · Deutsch · Español · Français · 日本語 · 简体�
 
 ---
 
-## Kaynaktan Derleme
+## Kurulum
 
-### Gereksinimler
-- Apple Silicon Mac (`arm64`) ve macOS 14.0 (Sonoma) veya üzeri
-- Xcode Command Line Tools veya Xcode 16+ (Swift 6.0)
+Apple Silicon Mac (`arm64`) ve **macOS 14.0 (Sonoma)** veya üzeri gerektirir.
 
-### Derleme ve Kurulum
+### 1. Yöntem: Homebrew Cask
+
+```bash
+brew tap onrunun/tap
+brew install --cask quickspot
+```
+
+> Homebrew 7+ üzerinde üçüncü parti tap onayı istenirse önce `brew trust onrunun/tap` komutunu çalıştırın.
+
+### 2. Yöntem: Hazır `.dmg` İndirme
+
+En güncel Apple Silicon `.dmg` paketini ve SHA-256 doğrulama dosyasını [GitHub Releases](https://github.com/onrunun/QuickSpot/releases/latest) sayfasından indirebilirsiniz.
+
+### 3. Yöntem: Kaynaktan Derleme
+
+Xcode Command Line Tools veya Xcode 16+ (Swift 6.0) gerektirir.
 
 ```bash
 git clone https://github.com/onrunun/QuickSpot.git
