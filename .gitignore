@@ -1,0 +1,23 @@
+# SwiftPM & Build Artifacts
+.build/
+.swiftpm/
+build.noindex/
+DerivedData/
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+
+# macOS Metadata
+.DS_Store
+**/.DS_Store
+
+# Signing, Secrets & Local Dev Files
+.sign-id
+.env
+.env.*
+*.p12
+*.cer
+*.mobileprovision
+*.key
+*.pem
+local-scripts/
