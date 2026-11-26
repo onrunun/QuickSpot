@@ -11,7 +11,10 @@ struct PreviewPaneView: View {
     let canRemoveBackground: Bool
     let isRemovingBackground: Bool
     let isPendingConfirmation: Bool
+    let heldModifier: HeldModifierMode
+    let alternateActionTitle: String?
     let onOpen: () -> Void
+    let onAlternateAction: () -> Void
     let onFindSimilar: () -> Void
     let onRemoveBackground: () -> Void
     let onActivateEntity: (DetectedSmartEntity) -> Void
@@ -67,7 +70,6 @@ struct PreviewPaneView: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
-                        .tint(.purple)
                         .fixedSize()
                         .help(L10n.tr("preview.action.find_similar_help"))
                     }
@@ -107,9 +109,9 @@ struct PreviewPaneView: View {
                 matchedSnippetBox(snippet)
             }
 
-            if !smartEntities.isEmpty {
+            if !previewSmartEntities.isEmpty {
                 PreviewIntelligenceStripView(
-                    entities: smartEntities,
+                    entities: previewSmartEntities,
                     onActivate: onActivateEntity,
                     onCopy: onCopyEntity
                 )
@@ -131,14 +133,18 @@ struct PreviewPaneView: View {
         }
     }
 
+    private var previewSmartEntities: [DetectedSmartEntity] {
+        Array(smartEntities.filter(\.isPreviewHighlighted).prefix(2))
+    }
+
     private var hasMatchedSnippet: Bool {
         item.matchSource != .clipboard && item.matchedSnippet?.isEmpty == false
     }
 
     private var mediaHeight: CGFloat {
-        if hasMatchedSnippet && !smartEntities.isEmpty { return 134 }
+        if hasMatchedSnippet && !previewSmartEntities.isEmpty { return 138 }
         if hasMatchedSnippet { return 162 }
-        if !smartEntities.isEmpty { return 174 }
+        if !previewSmartEntities.isEmpty { return 178 }
         if item.requiresConfirmation { return 178 }
         return 212
     }
@@ -173,7 +179,7 @@ struct PreviewPaneView: View {
     }
 
     private var snippetAccentColor: Color {
-        (item.matchSource == .semanticVisual || item.matchSource == .semanticText) ? .purple : .orange
+        (item.matchSource == .semanticVisual || item.matchSource == .semanticText) ? .accentColor : .orange
     }
 
     private var cautionPill: some View {
@@ -220,11 +226,37 @@ struct PreviewPaneView: View {
         .background(snippetAccentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
+    private var primaryButtonLabel: String {
+        if isPendingConfirmation {
+            return L10n.tr("preview.action.confirm_and_run")
+        }
+        if heldModifier == .command, case .openFile = item.action {
+            return L10n.tr("context.reveal_in_finder")
+        }
+        if heldModifier == .option, let alternateActionTitle {
+            return alternateActionTitle
+        }
+        return item.primaryActionTitle
+    }
+
+    private func triggerPrimaryButton() {
+        if isPendingConfirmation {
+            onOpen()
+        } else if heldModifier == .command, case .openFile = item.action {
+            onReveal()
+        } else if heldModifier == .option, alternateActionTitle != nil {
+            onAlternateAction()
+        } else {
+            onOpen()
+        }
+    }
+
     private var actionButtonsRow: some View {
         HStack(spacing: 6) {
-            Button(isPendingConfirmation ? L10n.tr("preview.action.confirm_and_run") : item.primaryActionTitle, action: onOpen)
+            Button(primaryButtonLabel, action: triggerPrimaryButton)
                 .buttonStyle(.borderedProminent)
                 .tint(isPendingConfirmation ? .orange : nil)
+                .animation(.easeOut(duration: 0.12), value: heldModifier)
             if item.category == .folder {
                 Button(L10n.tr("preview.action.enter_folder"), action: onEnterFolder)
                 Button(L10n.tr("context.reveal_in_finder"), action: onReveal)

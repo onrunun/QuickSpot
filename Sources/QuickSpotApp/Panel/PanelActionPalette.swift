@@ -18,9 +18,11 @@ extension PanelViewModel {
         let actions = ActionPaletteBuilder.buildActions(
             for: item,
             fullOCRText: selectedFullOCRText,
-            canFindSimilar: selectedSimilarityKind != nil
+            canFindSimilar: selectedSimilarityKind != nil,
+            smartEntities: selectedSmartEntities
         )
         guard !actions.isEmpty else { return }
+        setHeldModifier(.none)
         actionPaletteItems = actions
         actionPaletteIndex = 0
         actionPaletteConfirmID = nil
@@ -142,6 +144,10 @@ extension PanelViewModel {
             closeActionPalette()
             copySelectedOCRText()
             return false
+
+        case .smartEntity(let entity):
+            closeActionPalette()
+            return activateSmartEntity(entity)
 
         case .moveToTrash:
             closeActionPalette()

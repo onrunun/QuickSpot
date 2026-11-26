@@ -28,6 +28,7 @@ struct ResultRowView: View {
     let isSelected: Bool
     let shortcutIndex: Int?
     let isPendingConfirmation: Bool
+    let isCommandHeld: Bool
 
     @State private var thumbnail: NSImage?
     @Environment(\.displayScale) private var scale
@@ -117,11 +118,15 @@ struct ResultRowView: View {
 
             if let shortcutIndex {
                 Text("⌘\(shortcutIndex)")
-                    .font(.system(size: 10.5, weight: .medium, design: .rounded))
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 10.5, weight: isCommandHeld ? .semibold : .medium, design: .rounded))
+                    .foregroundStyle(isCommandHeld ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.tertiary))
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
-                    .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
+                    .background(
+                        isCommandHeld ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.06),
+                        in: RoundedRectangle(cornerRadius: 5)
+                    )
+                    .animation(.easeOut(duration: 0.12), value: isCommandHeld)
             }
         }
     }

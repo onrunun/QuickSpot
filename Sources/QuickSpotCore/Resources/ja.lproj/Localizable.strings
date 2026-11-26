@@ -64,6 +64,8 @@
 "panel.badge.terminal" = "ターミナル";
 "panel.badge.path" = "パス";
 "panel.footer.default" = "↑↓ 移動 · ⏎ 開く";
+"panel.footer.cmd_held" = "⌘⏎ Finderで表示 · ⌘1–9 クイック起動 · ⌘↑↓ セクション移動 · ⌘K アクション";
+"panel.footer.opt_held" = "⌥⏎ %@ · ⌥⌘C パスをコピー · ⇥ アクション";
 "panel.footer.prefixes" = "~/パス · f: · dir: · img: · pdf: · in: · >";
 "panel.toast.copied" = "コピーしました ✓";
 "panel.toast.confirm_again" = "確認のためもう一度 ⏎ を押してください";
@@ -94,7 +96,7 @@
 "preview.primary.open_settings" = "設定を開く";
 "preview.footer.folder" = "↑↓ 移動 · ⇥ 中を見る · ⏎ 開く · ⌘⏎ Finder · ⌘C コピー";
 "preview.footer.confirm" = "↑↓ 移動 · ⏎×2 確認して実行 · ⎋ キャンセル";
-"preview.footer.file" = "↑↓ 移動 · ⏎ 開く · ⌘⏎ Finder · ␣/⌘Y プレビュー · ⌘C コピー";
+"preview.footer.file" = "↑↓ 移動 · ⏎ 開く · ⇥ アクション · ⌘⏎ Finder · ␣/⌘Y プレビュー";
 "preview.footer.url" = "↑↓ 移動 · ⏎ ブラウザで開く · ⌘C リンクをコピー";
 "preview.footer.copy" = "↑↓ 移動 · ⏎ / ⌘C 結果をコピー";
 "preview.footer.terminal" = "↑↓ 移動 · ⏎ ターミナルで実行 · ⌘C コマンドをコピー";
@@ -186,7 +188,7 @@
 "file_action.error.unknown" = "不明なエラー";
 "file_action.error.open_terminal_failed" = "ターミナルを開けませんでした: %@";
 "palette.header" = "アクション";
-"palette.footer" = "↑↓ 選択 · ⏎ 実行 · ⎋ 閉じる";
+"palette.footer" = "↑↓/⇥ 選択 · ⏎ 実行 · ⎋ 閉じる";
 "palette.copy_to_clipboard" = "クリップボードにコピー";
 "palette.delete_from_history" = "履歴から削除";
 "palette.clear_clipboard" = "クリップボード履歴をすべて消去";
@@ -384,12 +386,13 @@
 /* プレビューインテリジェンス・クリップボード画像検索・クロスモーダル・重複写真 */
 "vision.bg_remove.no_subject" = "この画像から明確な被写体を検出できませんでした";
 "vision.bg_remove.failed" = "この画像の背景を削除できませんでした";
-"vision.entity.qr" = "QR";
-"vision.entity.link" = "リンク";
-"vision.entity.email" = "メール";
-"vision.entity.phone" = "電話";
 "vision.entity.open_help" = "開く: %@（右クリックでコピー）";
 "vision.entity.copy_help" = "コピー: %@";
+"palette.entity.open_qr" = "QRリンクを開く";
+"palette.entity.copy_qr" = "QRの内容をコピー";
+"palette.entity.copy_iban" = "IBANをコピー";
+"palette.entity.copy_email" = "メールアドレスをコピー";
+"palette.entity.open_url" = "リンクを開く";
 "preview.action.remove_bg_help" = "背景を削除してPNGコピー";
 "context.remove_bg" = "背景を削除してコピー";
 "palette.remove_bg" = "背景を削除してコピー";

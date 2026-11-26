@@ -1,12 +1,16 @@
 import AppKit
 import Quartz
 
-/// Isolates local keyboard monitor, IME safety, Tab path drill-down, two-step Escape, Quick Look, and shortcuts.
+/// Isolates local keyboard & modifier monitoring, IME safety, Tab drill-in/palette, Option-Return, section jump, and Quick Look.
 extension PanelController {
     func installKeyMonitor() {
         removeKeyMonitor()
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [weak self] event in
             guard let self, self.ownsKeyEvent(event) else { return event }
+            if event.type == .flagsChanged {
+                self.handleFlagsChanged(event)
+                return event
+            }
             return self.handleKeyDown(event) ? nil : event
         }
     }
@@ -29,17 +33,60 @@ extension PanelController {
         18: 0, 19: 1, 20: 2, 21: 3, 23: 4, 22: 5, 26: 6, 28: 7, 25: 8
     ]
 
-    private func handleKeyDown(_ event: NSEvent) -> Bool {
-        if (window?.firstResponder as? NSTextView)?.hasMarkedText() == true { return false }
-        let mods = event.modifierFlags
+    private func cleanModifiers(from event: NSEvent) -> NSEvent.ModifierFlags {
+        event.modifierFlags
             .intersection(.deviceIndependentFlagsMask)
             .subtracting([.capsLock, .numericPad, .function])
+    }
+
+    private func handleFlagsChanged(_ event: NSEvent) {
+        guard !viewModel.isActionPaletteVisible else {
+            viewModel.setHeldModifier(.none)
+            return
+        }
+        let mods = cleanModifiers(from: event)
+        if mods == .command {
+            viewModel.setHeldModifier(.command)
+        } else if mods == .option {
+            viewModel.setHeldModifier(.option)
+        } else {
+            viewModel.setHeldModifier(.none)
+        }
+    }
+
+    private func homeRowNavigationDelta(for event: NSEvent, mods: NSEvent.ModifierFlags) -> Int? {
+        guard mods == .control,
+              let ch = event.charactersIgnoringModifiers?.lowercased() else { return nil }
+        switch ch {
+        case "n", "j": return 1
+        case "p", "k": return -1
+        default: return nil
+        }
+    }
+
+    private func isCaretAtEndOfSearchField() -> Bool {
+        if viewModel.query.isEmpty { return true }
+        guard let tv = window?.firstResponder as? NSTextView else { return true }
+        let sel = tv.selectedRange()
+        let utf16Count = (tv.string as NSString).length
+        return sel.length == 0 && sel.location >= utf16Count
+    }
+
+    private func handleKeyDown(_ event: NSEvent) -> Bool {
+        if (window?.firstResponder as? NSTextView)?.hasMarkedText() == true { return false }
+        let mods = cleanModifiers(from: event)
 
         if viewModel.isActionPaletteVisible {
             return handleActionPaletteKeyDown(event, mods: mods)
         }
 
+        if let delta = homeRowNavigationDelta(for: event, mods: mods) {
+            viewModel.moveSelection(by: delta)
+            return true
+        }
+
         if mods == .command, let idx = Self.numberKeyMap[event.keyCode] {
+            viewModel.setHeldModifier(.none)
             if viewModel.selectAndExecute(at: idx) { hide() }
             return true
         }
@@ -57,8 +104,13 @@ extension PanelController {
         case 9 where mods == [.command, .shift]: // Shift+Cmd+V Clipboard History
             viewModel.setQueryForAutocomplete("cb: ")
             return true
-        case 48 where mods.isEmpty: // Tab path drill-down / completion
-            _ = viewModel.autocompleteWithTab()
+        case 48 where mods.isEmpty: // Tab: folder/path drill-in, else open Action Palette
+            if !viewModel.autocompleteWithTab() {
+                viewModel.openActionPalette()
+            }
+            return true
+        case 48 where mods == .shift: // Shift+Tab: step up one directory in path mode
+            _ = viewModel.stepUpDirectoryWithShiftTab()
             return true
         case 51 where mods == .command: // Cmd+Delete clear query and similar mode
             viewModel.clearQueryAndSimilar()
@@ -66,16 +118,36 @@ extension PanelController {
         case 51 where mods.isEmpty && viewModel.query.isEmpty && viewModel.similarAnchor != nil: // Delete chip
             viewModel.exitSimilarMode()
             return true
+        case 126 where mods == .command: // Cmd+Up jump to previous section
+            viewModel.moveSelectionBySection(direction: -1)
+            return true
+        case 125 where mods == .command: // Cmd+Down jump to next section
+            viewModel.moveSelectionBySection(direction: 1)
+            return true
         case 126: // Up
             viewModel.moveSelection(by: -1)
             return true
         case 125: // Down
             viewModel.moveSelection(by: 1)
             return true
-        case 36, 76: // Return / Keypad Enter
+        case 124 where mods.isEmpty && !isQuickLookVisible && isCaretAtEndOfSearchField(): // Right at end: drill-in / Action Palette
+            if !viewModel.autocompleteWithTab() {
+                viewModel.openActionPalette()
+            }
+            return true
+        case 123 where mods.isEmpty && !isQuickLookVisible && viewModel.query.isEmpty && viewModel.similarAnchor != nil: // Left on empty Similar mode: exit
+            viewModel.exitSimilarMode()
+            return true
+        case 36 where mods == .option, 76 where mods == .option: // Option+Return smart contextual alternate action
+            viewModel.setHeldModifier(.none)
+            if viewModel.executeAlternateAction() { hide() }
+            return true
+        case 36, 76: // Return / Cmd+Return
+            viewModel.setHeldModifier(.none)
             if viewModel.executeSelected(revealInFinder: mods.contains(.command)) { hide() }
             return true
         case 53: // Multi-step Escape
+            viewModel.setHeldModifier(.none)
             if isQuickLookVisible {
                 QLPreviewPanel.shared().orderOut(nil)
                 return true
@@ -128,12 +200,22 @@ extension PanelController {
     }
 
     private func handleActionPaletteKeyDown(_ event: NSEvent, mods: NSEvent.ModifierFlags) -> Bool {
+        if let delta = homeRowNavigationDelta(for: event, mods: mods) {
+            viewModel.moveActionPaletteSelection(by: delta)
+            return true
+        }
         switch event.keyCode {
         case 126: // Up
             viewModel.moveActionPaletteSelection(by: -1)
             return true
         case 125: // Down
             viewModel.moveActionPaletteSelection(by: 1)
+            return true
+        case 48 where mods.isEmpty: // Tab next action
+            viewModel.moveActionPaletteSelection(by: 1)
+            return true
+        case 48 where mods == .shift: // Shift+Tab previous action
+            viewModel.moveActionPaletteSelection(by: -1)
             return true
         case 36, 76: // Return / Keypad Enter
             let shouldHide = viewModel.executeActionPalette(
@@ -143,6 +225,9 @@ extension PanelController {
             if shouldHide { hide() }
             return true
         case 53: // Escape
+            viewModel.cancelActionPaletteConfirmationOrClose()
+            return true
+        case 123 where mods.isEmpty: // Left arrow closes Action Palette
             viewModel.cancelActionPaletteConfirmationOrClose()
             return true
         case 40 where mods == .command: // Cmd+K toggle close

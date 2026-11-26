@@ -228,21 +228,28 @@ final class SemanticPowerCapabilitiesTests: XCTestCase {
         XCTAssertFalse(ImageIntelligenceService.isValidIBAN("TR33 0006 1005 1978 6457 8413 27")) // invalid checksum
         XCTAssertFalse(ImageIntelligenceService.isValidIBAN("XX00 1234 5678 9012 3456"))
 
-        // 2. Smart entity extraction from receipt OCR text (including same-line trailing text after IBAN)
+        // 2. Smart entity extraction from invoice/legal text: IBAN + explicit URL + email only;
+        //    phone numbers, case/docket numbers, IDs, and bare filenames (.md, .py, .sh) must NOT produce false positives.
         let receiptText = """
-        Fatura Ödeme Bilgileri
-        IBAN: TR33 0006 1005 1978 6457 8413 26 Ornek Alıcı
+        Invoice Payment Details
+        IBAN: DE89 3704 0044 0532 0130 00 Example GmbH
         Web: https://quickspot.example.com/invoice/42
-        Destek: billing@example.com
-        Tel: +90 212 555 01 99
+        Support: billing@example.com
+        Phone: +1 (555) 234-5678
+        Case Ref: 2023/70494 and 2021/40906
+        ID: 26825046474
+        Files: README.md, messaging.py, deploy.sh, model.ai
         """
         let entities = ImageIntelligenceService.extractSmartEntities(from: receiptText)
         let kinds = Set(entities.map(\.kind))
-        XCTAssertTrue(kinds.contains(.iban))
-        XCTAssertTrue(kinds.contains(.url))
-        XCTAssertTrue(kinds.contains(.email))
-        XCTAssertTrue(kinds.contains(.phone))
-        XCTAssertEqual(entities.first(where: { $0.kind == .iban })?.copyValue, "TR330006100519786457841326")
+        XCTAssertEqual(kinds, Set([.iban, .url, .email]))
+        let ibanEntity = try XCTUnwrap(entities.first(where: { $0.kind == .iban }))
+        XCTAssertEqual(ibanEntity.copyValue, "DE89370400440532013000")
+        XCTAssertEqual(ibanEntity.displayValue, "DE89 3704 … 3000")
+        XCTAssertTrue(ibanEntity.isPreviewHighlighted)
+        XCTAssertFalse(try XCTUnwrap(entities.first(where: { $0.kind == .url })).isPreviewHighlighted)
+        XCTAssertFalse(try XCTUnwrap(entities.first(where: { $0.kind == .email })).isPreviewHighlighted)
+        XCTAssertEqual(entities.filter { $0.kind == .url }.count, 1)
 
         // 3. Real Apple Vision QR code detection on a synthesized CIQRCodeGenerator image
         let filter = try XCTUnwrap(CIFilter(name: "CIQRCodeGenerator"))
@@ -259,6 +266,7 @@ final class SemanticPowerCapabilitiesTests: XCTestCase {
 
         let qrEntities = ImageIntelligenceService.detectBarcodes(in: qrCGImage)
         XCTAssertEqual(qrEntities.first?.kind, .qrURL)
+        XCTAssertEqual(qrEntities.first?.isPreviewHighlighted, true)
         XCTAssertEqual(qrEntities.first?.copyValue, "https://example.com/quickspot")
         XCTAssertEqual(qrEntities.first?.openURL?.absoluteString, "https://example.com/quickspot")
 

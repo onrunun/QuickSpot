@@ -38,12 +38,9 @@ struct SimilarAnchorChipView: View {
                 .help(L10n.tr("panel.similar.clear_help"))
             }
             .padding(.leading, 4)
-            .padding(.trailing, 6)
+            .padding(.trailing, 7)
             .padding(.vertical, 3.5)
-            .background(Color.purple.opacity(0.14), in: Capsule())
-            .overlay(
-                Capsule().strokeBorder(Color.purple.opacity(0.28), lineWidth: 0.75)
-            )
+            .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
 
             if showScopeToggle {
                 scopeToggleStrip
@@ -75,10 +72,7 @@ struct SimilarAnchorChipView: View {
             scopeButton(.all, symbol: "square.stack", helpKey: "panel.similar.scope.all")
         }
         .padding(2)
-        .background(Color.primary.opacity(0.06), in: Capsule())
-        .overlay(
-            Capsule().strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.75)
-        )
+        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
     }
 
     private func scopeButton(
@@ -92,9 +86,12 @@ struct SimilarAnchorChipView: View {
         } label: {
             Image(systemName: symbol)
                 .font(.system(size: 10.5, weight: isActive ? .semibold : .regular))
-                .foregroundStyle(isActive ? Color.purple : .secondary)
+                .foregroundStyle(isActive ? Color.accentColor : .secondary)
                 .frame(width: 22, height: 18)
-                .background(isActive ? Color.purple.opacity(0.18) : Color.clear, in: Capsule())
+                .background(
+                    isActive ? Color.accentColor.opacity(0.16) : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 5, style: .continuous)
+                )
         }
         .buttonStyle(.plain)
         .help(L10n.tr(helpKey))
@@ -117,7 +114,7 @@ struct SimilarAnchorChipView: View {
         } else {
             Image(systemName: "photo")
                 .font(.system(size: 11))
-                .foregroundStyle(.purple)
+                .foregroundStyle(Color.accentColor)
         }
     }
 }

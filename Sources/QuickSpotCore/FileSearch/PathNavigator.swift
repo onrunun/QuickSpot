@@ -16,6 +16,11 @@ public enum PathNavigator {
         autocompletePath(for: item, homeDirectory: NSHomeDirectory())
     }
 
+    /// Steps up one directory level for `Shift+Tab` in path navigation mode (e.g. `~/Downloads/Docs/` -> `~/Downloads/`).
+    public static func parentDirectoryQuery(for rawPath: String) -> String? {
+        parentDirectoryQuery(for: rawPath, homeDirectory: NSHomeDirectory())
+    }
+
     static func search(rawPath: String, limit: Int, homeDirectory: String) -> [SearchItem] {
         let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, limit > 0 else { return [] }
@@ -70,6 +75,19 @@ public enum PathNavigator {
         let isDir = isDirectoryItem(url: url, category: item.category)
         let shortened = tildeShortened(standardized, home: normalizedDirectory(homeDirectory))
         return isDir ? (shortened.hasSuffix("/") ? shortened : shortened + "/") : shortened
+    }
+
+    static func parentDirectoryQuery(for rawPath: String, homeDirectory: String) -> String? {
+        let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let home = normalizedDirectory(homeDirectory)
+        guard let expanded = expandPath(trimmed, home: home) else { return nil }
+        let normalized = normalizedDirectory(expanded)
+        guard normalized != "/" else { return nil }
+
+        let parentPath = URL(fileURLWithPath: normalized).deletingLastPathComponent().standardizedFileURL.path
+        let shortened = tildeShortened(parentPath, home: home)
+        return shortened.hasSuffix("/") ? shortened : shortened + "/"
     }
 
     private static func makeExactMatchItem(for url: URL, home: String, fm: FileManager) -> SearchItem? {

@@ -64,6 +64,8 @@
 "panel.badge.terminal" = "Terminal";
 "panel.badge.path" = "Pfad";
 "panel.footer.default" = "↑↓ Navigieren · ⏎ Öffnen";
+"panel.footer.cmd_held" = "⌘⏎ Im Finder zeigen · ⌘1–9 Schnell öffnen · ⌘↑↓ Bereich wechseln · ⌘K Aktionen";
+"panel.footer.opt_held" = "⌥⏎ %@ · ⌥⌘C Pfad kopieren · ⇥ Aktionen";
 "panel.footer.prefixes" = "~/Pfad · f: · dir: · img: · pdf: · in: · >";
 "panel.toast.copied" = "Kopiert ✓";
 "panel.toast.confirm_again" = "Zum Bestätigen erneut ⏎ drücken";
@@ -94,7 +96,7 @@
 "preview.primary.open_settings" = "Einstellungen öffnen";
 "preview.footer.folder" = "↑↓ Navigieren · ⇥ Ordner · ⏎ Öffnen · ⌘⏎ Finder · ⌘C Kopieren";
 "preview.footer.confirm" = "↑↓ Navigieren · ⏎×2 Bestätigen · ⎋ Abbrechen";
-"preview.footer.file" = "↑↓ Navigieren · ⏎ Öffnen · ⌘⏎ Finder · ␣/⌘Y Vorschau · ⌘C Kopieren";
+"preview.footer.file" = "↑↓ Navigieren · ⏎ Öffnen · ⇥ Aktionen · ⌘⏎ Finder · ␣/⌘Y Vorschau";
 "preview.footer.url" = "↑↓ Navigieren · ⏎ Im Browser öffnen · ⌘C Link kopieren";
 "preview.footer.copy" = "↑↓ Navigieren · ⏎ / ⌘C Ergebnis kopieren";
 "preview.footer.terminal" = "↑↓ Navigieren · ⏎ Im Terminal ausführen · ⌘C Befehl kopieren";
@@ -186,7 +188,7 @@
 "file_action.error.unknown" = "Unbekannter Fehler";
 "file_action.error.open_terminal_failed" = "Terminal konnte nicht geöffnet werden: %@";
 "palette.header" = "Aktionen";
-"palette.footer" = "↑↓ Wählen · ⏎ Anwenden · ⎋ Schließen";
+"palette.footer" = "↑↓/⇥ Wählen · ⏎ Anwenden · ⎋ Schließen";
 "palette.copy_to_clipboard" = "In Zwischenablage kopieren";
 "palette.delete_from_history" = "Aus Verlauf löschen";
 "palette.clear_clipboard" = "Gesamten Verlauf löschen";
@@ -384,12 +386,13 @@
 /* Vorschau-Intelligenz, Zwischenablage-Bildsuche, Cross-Modal & Duplikate */
 "vision.bg_remove.no_subject" = "Kein eindeutiges Vordergrundmotiv in diesem Bild erkannt";
 "vision.bg_remove.failed" = "Hintergrund konnte nicht entfernt werden";
-"vision.entity.qr" = "QR";
-"vision.entity.link" = "Link";
-"vision.entity.email" = "E-Mail";
-"vision.entity.phone" = "Tel.";
 "vision.entity.open_help" = "Öffnen: %@ (Rechtsklick zum Kopieren)";
 "vision.entity.copy_help" = "Kopieren: %@";
+"palette.entity.open_qr" = "QR-Link öffnen";
+"palette.entity.copy_qr" = "QR-Inhalt kopieren";
+"palette.entity.copy_iban" = "IBAN kopieren";
+"palette.entity.copy_email" = "E-Mail kopieren";
+"palette.entity.open_url" = "Link öffnen";
 "preview.action.remove_bg_help" = "Hintergrund entfernen & als PNG kopieren";
 "context.remove_bg" = "Hintergrund entfernen & kopieren";
 "palette.remove_bg" = "Hintergrund entfernen & kopieren";

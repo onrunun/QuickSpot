@@ -64,6 +64,8 @@
 "panel.badge.terminal" = "Terminal";
 "panel.badge.path" = "Path";
 "panel.footer.default" = "↑↓ Navigate · ⏎ Open";
+"panel.footer.cmd_held" = "⌘⏎ Reveal in Finder · ⌘1–9 Quick Open · ⌘↑↓ Jump Section · ⌘K Actions";
+"panel.footer.opt_held" = "⌥⏎ %@ · ⌥⌘C Copy Path · ⇥ Actions";
 "panel.footer.prefixes" = "~/Path · f: · dir: · img: · pdf: · in: · >";
 "panel.toast.copied" = "Copied ✓";
 "panel.toast.confirm_again" = "Press ⏎ again to confirm";
@@ -94,7 +96,7 @@
 "preview.primary.open_settings" = "Open Settings";
 "preview.footer.folder" = "↑↓ Navigate · ⇥ Enter Folder · ⏎ Open · ⌘⏎ Finder · ⌘C Copy";
 "preview.footer.confirm" = "↑↓ Navigate · ⏎×2 Confirm & Run · ⎋ Cancel";
-"preview.footer.file" = "↑↓ Navigate · ⏎ Open · ⌘⏎ Finder · ␣/⌘Y Preview · ⌘C Copy";
+"preview.footer.file" = "↑↓ Navigate · ⏎ Open · ⇥ Actions · ⌘⏎ Finder · ␣/⌘Y Preview";
 "preview.footer.url" = "↑↓ Navigate · ⏎ Open in Browser · ⌘C Copy Link";
 "preview.footer.copy" = "↑↓ Navigate · ⏎ / ⌘C Copy Result";
 "preview.footer.terminal" = "↑↓ Navigate · ⏎ Run in Terminal · ⌘C Copy Command";
@@ -185,7 +187,7 @@
 "file_action.error.unknown" = "Unknown error";
 "file_action.error.open_terminal_failed" = "Could not open Terminal: %@";
 "palette.header" = "Actions";
-"palette.footer" = "↑↓ Select · ⏎ Apply · ⎋ Close";
+"palette.footer" = "↑↓/⇥ Select · ⏎ Apply · ⎋ Close";
 "palette.copy_to_clipboard" = "Copy to Clipboard";
 "palette.delete_from_history" = "Delete from History";
 "palette.clear_clipboard" = "Clear All Clipboard History";
@@ -383,12 +385,13 @@
 /* Preview Intelligence, Clipboard Reverse Search, Cross-Modal & Duplicate Finder */
 "vision.bg_remove.no_subject" = "No distinct foreground subject detected in this image";
 "vision.bg_remove.failed" = "Could not remove background from this image";
-"vision.entity.qr" = "QR";
-"vision.entity.link" = "Link";
-"vision.entity.email" = "Email";
-"vision.entity.phone" = "Phone";
 "vision.entity.open_help" = "Open: %@ (Right-click to copy)";
 "vision.entity.copy_help" = "Copy: %@";
+"palette.entity.open_qr" = "Open QR Link";
+"palette.entity.copy_qr" = "Copy QR Content";
+"palette.entity.copy_iban" = "Copy IBAN";
+"palette.entity.copy_email" = "Copy Email";
+"palette.entity.open_url" = "Open Link";
 "preview.action.remove_bg_help" = "Remove Background & Copy PNG";
 "context.remove_bg" = "Remove Background & Copy";
 "palette.remove_bg" = "Remove Background & Copy";

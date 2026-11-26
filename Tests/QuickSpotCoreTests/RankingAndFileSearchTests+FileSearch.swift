@@ -145,6 +145,22 @@ extension RankingAndFileSearchTests {
         XCTAssertTrue(publicFolderCompletion.hasSuffix("/"))
         XCTAssertFalse(publicFileCompletion.hasSuffix("/"))
 
+        // 4b. Shift+Tab parentDirectoryQuery steps up one folder cleanly
+        XCTAssertEqual(
+            PathNavigator.parentDirectoryQuery(for: "~/Desktop/SubFolder/", homeDirectory: homePath),
+            "~/Desktop/"
+        )
+        XCTAssertEqual(
+            PathNavigator.parentDirectoryQuery(for: "~/Desktop/rap", homeDirectory: homePath),
+            "~/Desktop/"
+        )
+        XCTAssertEqual(
+            PathNavigator.parentDirectoryQuery(for: "~/Desktop/", homeDirectory: homePath),
+            "~/"
+        )
+        XCTAssertNil(PathNavigator.parentDirectoryQuery(for: "/", homeDirectory: homePath))
+        XCTAssertNil(PathNavigator.parentDirectoryQuery(for: "chrome", homeDirectory: homePath))
+
         // 5. RecentFilesProvider isolated refresh, recentItems, and searchInstant filters
         let suite = "QuickSpotRecentFiles-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

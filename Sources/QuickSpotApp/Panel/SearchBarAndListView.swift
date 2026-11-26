@@ -80,7 +80,7 @@ struct SearchBarAndListView: View {
         HStack(spacing: 10) {
             Image(systemName: viewModel.similarAnchor != nil ? "sparkles" : "magnifyingglass")
                 .font(.system(size: 19, weight: .medium))
-                .foregroundStyle(viewModel.similarAnchor != nil ? Color.purple : .secondary)
+                .foregroundStyle(viewModel.similarAnchor != nil ? Color.accentColor : .secondary)
                 .frame(width: 24)
 
             if let anchor = viewModel.similarAnchor {
@@ -196,7 +196,7 @@ struct SearchBarAndListView: View {
             } else {
                 Image(systemName: viewModel.similarAnchor != nil ? "sparkles" : "magnifyingglass")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(viewModel.similarAnchor != nil ? Color.purple.opacity(0.75) : .secondary)
+                    .foregroundStyle(viewModel.similarAnchor != nil ? Color.accentColor.opacity(0.8) : .secondary)
                 Text(viewModel.emptyResultMessage)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.secondary)
@@ -225,7 +225,12 @@ struct SearchBarAndListView: View {
                         canRemoveBackground: canRemoveBG,
                         isRemovingBackground: viewModel.isRemovingBackground,
                         isPendingConfirmation: viewModel.pendingConfirmationID == selected.id,
+                        heldModifier: viewModel.heldModifier,
+                        alternateActionTitle: viewModel.alternateAction?.title,
                         onOpen: { onExecuteIndex(viewModel.selectedIndex) },
+                        onAlternateAction: {
+                            if viewModel.executeAlternateAction() { onHideWithoutReturnFocus() }
+                        },
                         onFindSimilar: { viewModel.findSimilarForSelected() },
                         onRemoveBackground: { viewModel.removeBackgroundAndCopySelected() },
                         onActivateEntity: { entity in
@@ -248,8 +253,7 @@ struct SearchBarAndListView: View {
     }
 
     private var resultsList: some View {
-        let isEmptyQuery = !hasNonEmptyQuery && viewModel.similarAnchor == nil
-        let labels = viewModel.items.map { sectionLabel(for: $0, isEmptyQuery: isEmptyQuery) }
+        let labels = viewModel.items.map { viewModel.sectionLabel(for: $0) }
         let showHeaders = shouldDisplaySectionHeaders(for: labels)
 
         return ScrollViewReader { proxy in
@@ -264,7 +268,8 @@ struct SearchBarAndListView: View {
                                 item: item,
                                 isSelected: index == viewModel.selectedIndex,
                                 shortcutIndex: index < 9 ? index + 1 : nil,
-                                isPendingConfirmation: viewModel.pendingConfirmationID == item.id
+                                isPendingConfirmation: viewModel.pendingConfirmationID == item.id,
+                                isCommandHeld: viewModel.heldModifier == .command
                             )
                             .overlay { rowOverlay(index: index, item: item) }
                         }
@@ -287,13 +292,6 @@ struct SearchBarAndListView: View {
             .padding(.horizontal, 8)
             .padding(.top, isFirst ? 2 : 8)
             .padding(.bottom, 2)
-    }
-
-    private func sectionLabel(for item: SearchItem, isEmptyQuery: Bool) -> String {
-        if isEmptyQuery && item.matchSource == .recent && item.category != .application {
-            return L10n.tr("panel.section.recent_files")
-        }
-        return item.category.sectionTitle
     }
 
     private func shouldDisplaySectionHeaders(for labels: [String]) -> Bool {
@@ -332,20 +330,37 @@ struct SearchBarAndListView: View {
         )
     }
 
+    private var activeFooterHint: String {
+        switch viewModel.heldModifier {
+        case .command:
+            return L10n.tr("panel.footer.cmd_held")
+        case .option:
+            if let alt = viewModel.alternateAction {
+                return L10n.format("panel.footer.opt_held", alt.title)
+            }
+            return viewModel.selectedItem?.footerShortcutHint ?? L10n.tr("panel.footer.default")
+        case .none:
+            return viewModel.selectedItem?.footerShortcutHint ?? L10n.tr("panel.footer.default")
+        }
+    }
+
     private var shortcutsFooter: some View {
-        HStack(spacing: 10) {
-            Text(viewModel.selectedItem?.footerShortcutHint ?? L10n.tr("panel.footer.default"))
+        let isModifierActive = viewModel.heldModifier != .none
+        return HStack(spacing: 10) {
+            Text(activeFooterHint)
+                .foregroundStyle(isModifierActive ? .secondary : .tertiary)
                 .lineLimit(1)
                 .truncationMode(.tail)
             Spacer(minLength: 8)
             Text(L10n.tr("panel.footer.prefixes"))
+                .foregroundStyle(.tertiary)
                 .lineLimit(1)
                 .fixedSize()
         }
         .font(.system(size: 11, weight: .medium))
-        .foregroundStyle(.tertiary)
         .padding(.horizontal, 16)
         .padding(.vertical, 7)
+        .animation(.easeOut(duration: 0.12), value: viewModel.heldModifier)
     }
 
     private func isLongBannerToast(_ message: String) -> Bool {

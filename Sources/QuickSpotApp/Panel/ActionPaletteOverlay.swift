@@ -95,6 +95,7 @@ struct ActionPaletteOverlay: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                        .truncationMode(.middle)
                 }
             }
 

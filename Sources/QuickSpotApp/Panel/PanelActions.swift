@@ -2,7 +2,21 @@ import AppKit
 import Foundation
 import QuickSpotCore
 
-/// Isolates Tab path completion, pasteboard copy actions, Finder reveal, and unified feedback toasts.
+/// Describes the contextual `⌥⏎` secondary action surfaced live when holding Option.
+struct AlternateActionDescriptor: Equatable {
+    enum Kind: Equatable {
+        case smartEntity(DetectedSmartEntity)
+        case copyOCRText
+        case openInTerminal(URL)
+        case copyPath
+        case copyItem
+    }
+
+    let title: String
+    let kind: Kind
+}
+
+/// Isolates Tab path completion, Option-Return alternate actions, pasteboard copy, Finder reveal, and feedback toasts.
 extension PanelViewModel {
     @discardableResult
     func autocompleteWithTab() -> Bool {
@@ -15,10 +29,78 @@ extension PanelViewModel {
         }
 
         guard item.category == .folder || isPathMode else { return false }
-        guard let completed = PathNavigator.autocompletePath(for: item) else { return false }
+        guard let completed = PathNavigator.autocompletePath(for: item),
+              completed != query else { return false }
 
         setQueryForAutocomplete(completed)
         return true
+    }
+
+    @discardableResult
+    func stepUpDirectoryWithShiftTab() -> Bool {
+        guard case .path(let rawPath) = QueryParser.parse(query).mode,
+              let parent = PathNavigator.parentDirectoryQuery(for: rawPath),
+              parent != query else { return false }
+        setQueryForAutocomplete(parent)
+        return true
+    }
+
+    /// Computes the smartest contextual secondary action (`⌥⏎`) for the currently selected result.
+    var alternateAction: AlternateActionDescriptor? {
+        guard let item = selectedItem, !item.requiresConfirmation else { return nil }
+
+        if let entity = selectedSmartEntities.first(where: \.isPreviewHighlighted) {
+            let title: String
+            switch entity.kind {
+            case .qrURL: title = L10n.tr("palette.entity.open_qr")
+            case .qrText: title = L10n.tr("palette.entity.copy_qr")
+            case .iban: title = L10n.tr("palette.entity.copy_iban")
+            case .email: title = L10n.tr("palette.entity.copy_email")
+            case .url: title = L10n.tr("palette.entity.open_url")
+            }
+            return AlternateActionDescriptor(title: title, kind: .smartEntity(entity))
+        }
+
+        if let text = selectedFullOCRText, !text.isEmpty {
+            return AlternateActionDescriptor(title: L10n.tr("preview.action.copy_text"), kind: .copyOCRText)
+        }
+
+        if let url = item.previewURL, url.isFileURL {
+            if item.category == .folder {
+                return AlternateActionDescriptor(title: L10n.tr("palette.open_in_terminal"), kind: .openInTerminal(url))
+            }
+            return AlternateActionDescriptor(title: L10n.tr("context.copy_path"), kind: .copyPath)
+        }
+
+        if case .copyText = item.action {
+            return nil
+        }
+        return AlternateActionDescriptor(title: L10n.tr("context.copy"), kind: .copyItem)
+    }
+
+    @discardableResult
+    func executeAlternateAction() -> Bool {
+        guard let descriptor = alternateAction else { return false }
+        onCancelPendingHide?()
+        switch descriptor.kind {
+        case .smartEntity(let entity):
+            return activateSmartEntity(entity)
+        case .copyOCRText:
+            copySelectedOCRText()
+            return false
+        case .openInTerminal(let url):
+            if let err = FileActionService.openInTerminal(url) {
+                showToast(err, style: .error, duration: 5.0)
+                return false
+            }
+            return true
+        case .copyPath:
+            copySelectedPath()
+            return false
+        case .copyItem:
+            copySelected()
+            return false
+        }
     }
 
     func copySelected() {

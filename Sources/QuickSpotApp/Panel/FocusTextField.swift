@@ -99,7 +99,8 @@ struct FocusTextField: NSViewRepresentable {
                 #selector(NSResponder.moveDown(_:)),
                 #selector(NSResponder.insertNewline(_:)),
                 #selector(NSResponder.cancelOperation(_:)),
-                #selector(NSResponder.insertTab(_:))
+                #selector(NSResponder.insertTab(_:)),
+                #selector(NSResponder.insertBacktab(_:))
             ]
             return intercepted.contains(commandSelector)
         }

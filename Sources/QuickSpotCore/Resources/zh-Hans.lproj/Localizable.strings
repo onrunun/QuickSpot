@@ -64,6 +64,8 @@
 "panel.badge.terminal" = "终端";
 "panel.badge.path" = "路径";
 "panel.footer.default" = "↑↓ 选择 · ⏎ 打开";
+"panel.footer.cmd_held" = "⌘⏎ 在访达中显示 · ⌘1–9 快速打开 · ⌘↑↓ 切换分类 · ⌘K 操作";
+"panel.footer.opt_held" = "⌥⏎ %@ · ⌥⌘C 复制路径 · ⇥ 操作";
 "panel.footer.prefixes" = "~/路径 · f: · dir: · img: · pdf: · in: · >";
 "panel.toast.copied" = "已复制 ✓";
 "panel.toast.confirm_again" = "再次按 ⏎ 确认执行";
@@ -94,7 +96,7 @@
 "preview.primary.open_settings" = "打开设置";
 "preview.footer.folder" = "↑↓ 选择 · ⇥ 进入文件夹 · ⏎ 打开 · ⌘⏎ 访达 · ⌘C 复制";
 "preview.footer.confirm" = "↑↓ 选择 · ⏎×2 确认执行 · ⎋ 取消";
-"preview.footer.file" = "↑↓ 选择 · ⏎ 打开 · ⌘⏎ 访达 · ␣/⌘Y 预览 · ⌘C 复制";
+"preview.footer.file" = "↑↓ 选择 · ⏎ 打开 · ⇥ 操作 · ⌘⏎ 访达 · ␣/⌘Y 预览";
 "preview.footer.url" = "↑↓ 选择 · ⏎ 浏览器打开 · ⌘C 复制链接";
 "preview.footer.copy" = "↑↓ 选择 · ⏎ / ⌘C 复制结果";
 "preview.footer.terminal" = "↑↓ 选择 · ⏎ 终端运行 · ⌘C 复制命令";
@@ -186,7 +188,7 @@
 "file_action.error.unknown" = "未知错误";
 "file_action.error.open_terminal_failed" = "无法打开终端：%@";
 "palette.header" = "操作";
-"palette.footer" = "↑↓ 选择 · ⏎ 执行 · ⎋ 关闭";
+"palette.footer" = "↑↓/⇥ 选择 · ⏎ 执行 · ⎋ 关闭";
 "palette.copy_to_clipboard" = "复制到剪贴板";
 "palette.delete_from_history" = "从历史记录中删除";
 "palette.clear_clipboard" = "清空所有剪贴板历史";
@@ -384,12 +386,13 @@
 /* 预览智能、剪贴板以图搜图、跨模态相似与重复照片清理 */
 "vision.bg_remove.no_subject" = "未在此图片中检测到明显的前景主体";
 "vision.bg_remove.failed" = "无法移除此图片的背景";
-"vision.entity.qr" = "二维码";
-"vision.entity.link" = "链接";
-"vision.entity.email" = "邮箱";
-"vision.entity.phone" = "电话";
 "vision.entity.open_help" = "打开: %@（右键复制）";
 "vision.entity.copy_help" = "复制: %@";
+"palette.entity.open_qr" = "打开二维码链接";
+"palette.entity.copy_qr" = "复制二维码内容";
+"palette.entity.copy_iban" = "复制 IBAN";
+"palette.entity.copy_email" = "复制邮箱";
+"palette.entity.open_url" = "打开链接";
 "preview.action.remove_bg_help" = "抠图去背景并复制 PNG";
 "context.remove_bg" = "移除背景并复制";
 "palette.remove_bg" = "移除背景并复制";

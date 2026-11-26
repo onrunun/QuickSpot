@@ -14,6 +14,7 @@ enum PaletteActionKind: Equatable {
     case copyItem
     case copyPath
     case copyOCRText
+    case smartEntity(DetectedSmartEntity)
     case moveToTrash
     case deleteClipboardEntry(String)
     case clearClipboardHistory
@@ -56,7 +57,8 @@ enum ActionPaletteBuilder {
     static func buildActions(
         for item: SearchItem,
         fullOCRText: String?,
-        canFindSimilar: Bool = false
+        canFindSimilar: Bool = false,
+        smartEntities: [DetectedSmartEntity] = []
     ) -> [PaletteActionItem] {
         if item.matchSource == .clipboard, item.id.hasPrefix("clip:") {
             let entryID = String(item.id.dropFirst(5))
@@ -88,7 +90,13 @@ enum ActionPaletteBuilder {
         }
 
         if let url = item.previewURL, url.isFileURL {
-            return buildFileActions(item: item, url: url, fullOCRText: fullOCRText, canFindSimilar: canFindSimilar)
+            return buildFileActions(
+                item: item,
+                url: url,
+                fullOCRText: fullOCRText,
+                canFindSimilar: canFindSimilar,
+                smartEntities: smartEntities
+            )
         }
 
         return [
@@ -113,7 +121,8 @@ enum ActionPaletteBuilder {
         item: SearchItem,
         url: URL,
         fullOCRText: String?,
-        canFindSimilar: Bool
+        canFindSimilar: Bool,
+        smartEntities: [DetectedSmartEntity]
     ) -> [PaletteActionItem] {
         var actions: [PaletteActionItem] = [
             PaletteActionItem(
@@ -218,6 +227,10 @@ enum ActionPaletteBuilder {
             ))
         }
 
+        for entity in smartEntities {
+            actions.append(paletteItem(for: entity))
+        }
+
         if canSafelyTrash(url) {
             actions.append(PaletteActionItem(
                 id: "act:trash",
@@ -230,6 +243,35 @@ enum ActionPaletteBuilder {
         }
 
         return actions
+    }
+
+    private static func paletteItem(for entity: DetectedSmartEntity) -> PaletteActionItem {
+        let title: String
+        let symbol: String
+        switch entity.kind {
+        case .qrURL:
+            title = L10n.tr("palette.entity.open_qr")
+            symbol = "qrcode"
+        case .qrText:
+            title = L10n.tr("palette.entity.copy_qr")
+            symbol = "qrcode"
+        case .iban:
+            title = L10n.tr("palette.entity.copy_iban")
+            symbol = "banknote"
+        case .email:
+            title = L10n.tr("palette.entity.copy_email")
+            symbol = "envelope"
+        case .url:
+            title = L10n.tr("palette.entity.open_url")
+            symbol = "globe"
+        }
+        return PaletteActionItem(
+            id: "act:entity:\(entity.id)",
+            title: title,
+            subtitle: entity.displayValue,
+            sfSymbol: symbol,
+            kind: .smartEntity(entity)
+        )
     }
 
     private static func canSafelyTrash(_ url: URL) -> Bool {

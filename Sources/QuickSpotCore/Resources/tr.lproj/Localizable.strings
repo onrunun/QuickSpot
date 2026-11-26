@@ -64,6 +64,8 @@
 "panel.badge.terminal" = "Terminal";
 "panel.badge.path" = "Yol";
 "panel.footer.default" = "↑↓ Gezin · ⏎ Aç";
+"panel.footer.cmd_held" = "⌘⏎ Finder'da Göster · ⌘1–9 Hızlı Aç · ⌘↑↓ Kategori Atla · ⌘K Aksiyonlar";
+"panel.footer.opt_held" = "⌥⏎ %@ · ⌥⌘C Yolu Kopyala · ⇥ Aksiyonlar";
 "panel.footer.prefixes" = "~/Yol · f: · dir: · img: · pdf: · in: · >";
 "panel.toast.copied" = "Kopyalandı ✓";
 "panel.toast.confirm_again" = "Onaylamak için tekrar ⏎ basın";
@@ -94,7 +96,7 @@
 "preview.primary.open_settings" = "Ayarları Aç";
 "preview.footer.folder" = "↑↓ Gezin · ⇥ Klasöre Gir · ⏎ Aç · ⌘⏎ Finder · ⌘C Kopyala";
 "preview.footer.confirm" = "↑↓ Gezin · ⏎×2 Onayla ve Çalıştır · ⎋ İptal";
-"preview.footer.file" = "↑↓ Gezin · ⏎ Aç · ⌘⏎ Finder · ␣/⌘Y Önizle · ⌘C Kopyala";
+"preview.footer.file" = "↑↓ Gezin · ⏎ Aç · ⇥ Aksiyonlar · ⌘⏎ Finder · ␣/⌘Y Önizle";
 "preview.footer.url" = "↑↓ Gezin · ⏎ Tarayıcıda Aç · ⌘C Linki Kopyala";
 "preview.footer.copy" = "↑↓ Gezin · ⏎ / ⌘C Sonucu Kopyala";
 "preview.footer.terminal" = "↑↓ Gezin · ⏎ Terminal'de Çalıştır · ⌘C Komutu Kopyala";
@@ -185,7 +187,7 @@
 "file_action.error.unknown" = "Bilinmeyen hata";
 "file_action.error.open_terminal_failed" = "Terminal açılamadı: %@";
 "palette.header" = "Eylemler";
-"palette.footer" = "↑↓ Seç · ⏎ Uygula · ⎋ Kapat";
+"palette.footer" = "↑↓/⇥ Seç · ⏎ Uygula · ⎋ Kapat";
 "palette.copy_to_clipboard" = "Panoya Kopyala";
 "palette.delete_from_history" = "Geçmişten Sil";
 "palette.clear_clipboard" = "Tüm Pano Geçmişini Temizle";
@@ -383,12 +385,13 @@
 /* Önizleme Zekası, Pano Görsel Arama, Çapraz Modalite ve İkiz Fotoğraf Bulucu */
 "vision.bg_remove.no_subject" = "Bu görselde ayrıştırılabilir bir ön plan nesnesi bulunamadı";
 "vision.bg_remove.failed" = "Görselin arka planı kaldırılamadı";
-"vision.entity.qr" = "QR";
-"vision.entity.link" = "Link";
-"vision.entity.email" = "E-posta";
-"vision.entity.phone" = "Tel";
 "vision.entity.open_help" = "Aç: %@ (Kopyalamak için sağ tık)";
 "vision.entity.copy_help" = "Kopyala: %@";
+"palette.entity.open_qr" = "QR Bağlantısını Aç";
+"palette.entity.copy_qr" = "QR İçeriğini Kopyala";
+"palette.entity.copy_iban" = "IBAN Kopyala";
+"palette.entity.copy_email" = "E-postayı Kopyala";
+"palette.entity.open_url" = "Bağlantıyı Aç";
 "preview.action.remove_bg_help" = "Arka Planı Kaldır ve PNG Kopyala";
 "context.remove_bg" = "Arka Planı Kaldır ve Kopyala";
 "palette.remove_bg" = "Arka Planı Kaldır ve Kopyala";

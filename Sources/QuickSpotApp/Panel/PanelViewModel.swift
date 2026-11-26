@@ -9,6 +9,13 @@ enum ToastStyle: Equatable {
     case error
 }
 
+/// Active single-modifier hold state for live macOS-style button/footer morphing in the launcher panel.
+enum HeldModifierMode: Equatable {
+    case none
+    case command
+    case option
+}
+
 /// Drives instant app/recent/path filtering, async OCR lookups, progressive Spotlight queries, and safe execution.
 @MainActor
 final class PanelViewModel: ObservableObject {
@@ -44,6 +51,7 @@ final class PanelViewModel: ObservableObject {
     @Published var actionPaletteItems: [PaletteActionItem] = []
     @Published var actionPaletteIndex: Int = 0
     @Published var actionPaletteConfirmID: String?
+    @Published var heldModifier: HeldModifierMode = .none
     @Published private(set) var languageToken: UUID = UUID()
 
     var onOpenSettings: (() -> Void)?
@@ -105,6 +113,7 @@ final class PanelViewModel: ObservableObject {
     func prepareForShow() {
         onCancelPendingHide?()
         closeActionPalette()
+        setHeldModifier(.none)
         focusRequest = .selectAll()
         hasNavigated = false
         pendingConfirmationID = nil
@@ -136,6 +145,7 @@ final class PanelViewModel: ObservableObject {
     func markHidden() {
         lastHiddenAt = Date()
         closeActionPalette()
+        setHeldModifier(.none)
         spotlightSearch.cancel()
         ocrSearchTask?.cancel()
         ocrSearchTask = nil
@@ -187,12 +197,56 @@ final class PanelViewModel: ObservableObject {
         focusRequest = .caretAtEnd()
     }
 
+    func setHeldModifier(_ mode: HeldModifierMode) {
+        if heldModifier != mode {
+            heldModifier = mode
+        }
+    }
+
     func moveSelection(by delta: Int) {
         guard !items.isEmpty else { return }
         onCancelPendingHide?()
         selectedIndex = (selectedIndex + delta + items.count) % items.count
         hasNavigated = true
         syncSelectionState()
+    }
+
+    func sectionLabel(for item: SearchItem) -> String {
+        let isEmptyQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && similarAnchor == nil
+        if isEmptyQuery && item.matchSource == .recent && item.category != .application {
+            return L10n.tr("panel.section.recent_files")
+        }
+        return item.category.sectionTitle
+    }
+
+    func moveSelectionBySection(direction: Int) {
+        guard !items.isEmpty, direction != 0 else { return }
+        let labels = items.map { sectionLabel(for: $0) }
+        var sectionStarts: [Int] = [0]
+        for idx in 1..<labels.count where labels[idx] != labels[idx - 1] {
+            sectionStarts.append(idx)
+        }
+
+        let target: Int
+        if sectionStarts.count <= 1 {
+            target = direction > 0 ? items.count - 1 : 0
+        } else if direction > 0 {
+            if let nextStart = sectionStarts.first(where: { $0 > selectedIndex }) {
+                target = nextStart
+            } else {
+                target = selectedIndex < items.count - 1 ? items.count - 1 : 0
+            }
+        } else {
+            let currentStart = sectionStarts.last(where: { $0 <= selectedIndex }) ?? 0
+            if selectedIndex > currentStart {
+                target = currentStart
+            } else if let prevStart = sectionStarts.last(where: { $0 < currentStart }) {
+                target = prevStart
+            } else {
+                target = 0
+            }
+        }
+        select(at: target)
     }
 
     func select(at index: Int) {

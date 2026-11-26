@@ -4,7 +4,7 @@ import Foundation
 import ImageIO
 import Vision
 
-/// Actionable entity extracted locally from an image (QR/barcode) or OCR/PDF text (IBAN, link, email, phone).
+/// Actionable entity extracted locally from an image (QR/barcode) or OCR/PDF text (IBAN, link, email).
 public struct DetectedSmartEntity: Identifiable, Equatable, Sendable {
     public enum Kind: String, Equatable, Sendable {
         case qrURL
@@ -12,7 +12,6 @@ public struct DetectedSmartEntity: Identifiable, Equatable, Sendable {
         case iban
         case url
         case email
-        case phone
     }
 
     public let id: String
@@ -20,6 +19,15 @@ public struct DetectedSmartEntity: Identifiable, Equatable, Sendable {
     public let displayValue: String
     public let copyValue: String
     public let openURL: URL?
+
+    /// High-precision entities safe to surface inline in the preview pane (QR/barcode and Mod-97 IBAN).
+    /// Lower-signal entities (emails, web URLs) remain accessible via the `⌘K` action palette.
+    public var isPreviewHighlighted: Bool {
+        switch kind {
+        case .qrURL, .qrText, .iban: return true
+        case .url, .email: return false
+        }
+    }
 
     public init(kind: Kind, displayValue: String, copyValue: String, openURL: URL? = nil) {
         self.id = "\(kind.rawValue):\(copyValue.lowercased())"
@@ -46,7 +54,7 @@ public enum BackgroundRemovalError: Error, Equatable, LocalizedError, Sendable {
 }
 
 /// On-demand, 100% local Apple Vision & Foundation preview intelligence:
-/// subject background removal (macOS 14+), QR/barcode decoding, and IBAN/URL/email/phone extraction.
+/// subject background removal (macOS 14+), QR/barcode decoding, and IBAN/URL/email extraction.
 public enum ImageIntelligenceService {
     private static let maxEntities = 6
     private static let maxBarcodeSide: CGFloat = 1800
@@ -174,7 +182,7 @@ public enum ImageIntelligenceService {
         }
     }
 
-    /// Extracts validated IBANs, URLs, email addresses, and phone numbers from OCR or PDF text.
+    /// Extracts ISO 13616 Mod-97 validated IBANs, explicit web URLs, and email addresses from OCR or PDF text.
     public static func extractSmartEntities(from text: String, maxCount: Int = 6) -> [DetectedSmartEntity] {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 5, maxCount > 0 else { return [] }
@@ -191,7 +199,7 @@ public enum ImageIntelligenceService {
             }
         }
 
-        // 1. ISO 13616 Mod-97 validated IBANs (highest utility on receipts/invoices).
+        // 1. ISO 13616 Mod-97 validated IBANs (global high-precision match for invoices/receipts).
         for iban in extractValidIBANs(from: bounded) {
             appendUnique(DetectedSmartEntity(
                 kind: .iban,
@@ -200,41 +208,39 @@ public enum ImageIntelligenceService {
             ))
         }
 
-        // 2. Foundation NSDataDetector for links, emails, and phone numbers.
-        let types: NSTextCheckingResult.CheckingType = [.link, .phoneNumber]
-        if let detector = try? NSDataDetector(types: types.rawValue) {
+        // 2. Foundation NSDataDetector for explicit links and emails only (phone numbers omitted due to high global false positives).
+        if let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) {
             let range = NSRange(bounded.startIndex..., in: bounded)
             let matches = detector.matches(in: bounded, options: [], range: range)
             for match in matches {
                 if entities.count >= maxCount { break }
-                if match.resultType == .link, let url = match.url {
-                    let scheme = (url.scheme ?? "").lowercased()
-                    if scheme == "mailto" {
-                        let email = url.absoluteString.replacingOccurrences(of: "mailto:", with: "", options: .caseInsensitive)
-                        guard !email.isEmpty else { continue }
-                        appendUnique(DetectedSmartEntity(
-                            kind: .email,
-                            displayValue: email,
-                            copyValue: email,
-                            openURL: url
-                        ))
-                    } else if scheme == "http" || scheme == "https", let host = url.host, host.contains(".") {
-                        let cleanDisplay = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
-                        appendUnique(DetectedSmartEntity(
-                            kind: .url,
-                            displayValue: cleanDisplay,
-                            copyValue: url.absoluteString,
-                            openURL: url
-                        ))
-                    }
-                } else if match.resultType == .phoneNumber, let phone = match.phoneNumber {
-                    let digits = phone.filter(\.isNumber)
-                    guard digits.count >= 7, digits.count <= 15 else { continue }
-                    let cleaned = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard match.resultType == .link, let url = match.url else { continue }
+                let scheme = (url.scheme ?? "").lowercased()
+                if scheme == "mailto" {
+                    let email = url.absoluteString.replacingOccurrences(of: "mailto:", with: "", options: .caseInsensitive)
+                    let parts = email.split(separator: "@", maxSplits: 1, omittingEmptySubsequences: false)
+                    guard parts.count == 2, !parts[0].isEmpty, parts[1].contains(".") else { continue }
                     appendUnique(DetectedSmartEntity(
-                        kind: .phone,
-                        displayValue: cleaned,
-                        copyValue: cleaned
+                        kind: .email,
+                        displayValue: email,
+                        copyValue: email,
+                        openURL: url
+                    ))
+                } else if scheme == "http" || scheme == "https",
+                          let swiftRange = Range(match.range, in: bounded),
+                          let host = url.host,
+                          host.contains(".") {
+                    // Require explicit scheme or www. prefix in source text so filenames like README.md / script.py aren't misread as URLs.
+                    let rawToken = bounded[swiftRange].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    guard rawToken.hasPrefix("http://") || rawToken.hasPrefix("https://") || rawToken.hasPrefix("www.") else {
+                        continue
+                    }
+                    let cleanDisplay = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+                    appendUnique(DetectedSmartEntity(
+                        kind: .url,
+                        displayValue: cleanDisplay,
+                        copyValue: url.absoluteString,
+                        openURL: url
                     ))
                 }
             }
@@ -336,6 +342,12 @@ public enum ImageIntelligenceService {
     }
 
     private static func formatIBAN(_ compact: String) -> String {
+        if compact.count > 18 {
+            let first = compact.prefix(4)
+            let second = compact.dropFirst(4).prefix(4)
+            let last = compact.suffix(4)
+            return "\(first) \(second) … \(last)"
+        }
         var groups: [String] = []
         var idx = compact.startIndex
         while idx < compact.endIndex {
@@ -343,11 +355,7 @@ public enum ImageIntelligenceService {
             groups.append(String(compact[idx..<next]))
             idx = next
         }
-        let grouped = groups.joined(separator: " ")
-        if grouped.count > 22 {
-            return String(grouped.prefix(10)) + "…" + String(grouped.suffix(4))
-        }
-        return grouped
+        return groups.joined(separator: " ")
     }
 
     private static func validatedWebURL(_ raw: String) -> URL? {

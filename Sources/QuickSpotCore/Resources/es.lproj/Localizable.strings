@@ -64,6 +64,8 @@
 "panel.badge.terminal" = "Terminal";
 "panel.badge.path" = "Ruta";
 "panel.footer.default" = "↑↓ Navegar · ⏎ Abrir";
+"panel.footer.cmd_held" = "⌘⏎ Mostrar en Finder · ⌘1–9 Abrir rápido · ⌘↑↓ Saltar sección · ⌘K Acciones";
+"panel.footer.opt_held" = "⌥⏎ %@ · ⌥⌘C Copiar ruta · ⇥ Acciones";
 "panel.footer.prefixes" = "~/Ruta · f: · dir: · img: · pdf: · in: · >";
 "panel.toast.copied" = "Copiado ✓";
 "panel.toast.confirm_again" = "Pulsa ⏎ de nuevo para confirmar";
@@ -94,7 +96,7 @@
 "preview.primary.open_settings" = "Abrir ajustes";
 "preview.footer.folder" = "↑↓ Navegar · ⇥ Entrar · ⏎ Abrir · ⌘⏎ Finder · ⌘C Copiar";
 "preview.footer.confirm" = "↑↓ Navegar · ⏎×2 Confirmar y ejecutar · ⎋ Cancelar";
-"preview.footer.file" = "↑↓ Navegar · ⏎ Abrir · ⌘⏎ Finder · ␣/⌘Y Vista rápida · ⌘C Copiar";
+"preview.footer.file" = "↑↓ Navegar · ⏎ Abrir · ⇥ Acciones · ⌘⏎ Finder · ␣/⌘Y Vista rápida";
 "preview.footer.url" = "↑↓ Navegar · ⏎ Abrir en navegador · ⌘C Copiar enlace";
 "preview.footer.copy" = "↑↓ Navegar · ⏎ / ⌘C Copiar resultado";
 "preview.footer.terminal" = "↑↓ Navegar · ⏎ Ejecutar en Terminal · ⌘C Copiar comando";
@@ -186,7 +188,7 @@
 "file_action.error.unknown" = "Error desconocido";
 "file_action.error.open_terminal_failed" = "No se pudo abrir Terminal: %@";
 "palette.header" = "Acciones";
-"palette.footer" = "↑↓ Elegir · ⏎ Aplicar · ⎋ Cerrar";
+"palette.footer" = "↑↓/⇥ Elegir · ⏎ Aplicar · ⎋ Cerrar";
 "palette.copy_to_clipboard" = "Copiar al portapapeles";
 "palette.delete_from_history" = "Eliminar del historial";
 "palette.clear_clipboard" = "Borrar todo el historial";
@@ -384,12 +386,13 @@
 /* Inteligencia de vista previa, portapapeles visual, cross-modal y duplicados */
 "vision.bg_remove.no_subject" = "No se detectó un sujeto principal definido en esta imagen";
 "vision.bg_remove.failed" = "No se pudo eliminar el fondo de esta imagen";
-"vision.entity.qr" = "QR";
-"vision.entity.link" = "Enlace";
-"vision.entity.email" = "Correo";
-"vision.entity.phone" = "Tel.";
 "vision.entity.open_help" = "Abrir: %@ (Clic derecho para copiar)";
 "vision.entity.copy_help" = "Copiar: %@";
+"palette.entity.open_qr" = "Abrir enlace QR";
+"palette.entity.copy_qr" = "Copiar contenido QR";
+"palette.entity.copy_iban" = "Copiar IBAN";
+"palette.entity.copy_email" = "Copiar correo";
+"palette.entity.open_url" = "Abrir enlace";
 "preview.action.remove_bg_help" = "Quitar fondo y copiar PNG";
 "context.remove_bg" = "Quitar fondo y copiar";
 "palette.remove_bg" = "Quitar fondo y copiar";

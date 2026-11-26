@@ -1,92 +1,92 @@
 import QuickSpotCore
 import SwiftUI
 
-/// Horizontal scrollable strip of clickable smart pills (QR/barcode, IBAN, URL, email, phone) in the preview pane.
+/// Soft, borderless, theme-adaptive strip for high-precision inline preview entities (QR/barcode and validated IBAN).
 struct PreviewIntelligenceStripView: View {
     let entities: [DetectedSmartEntity]
     let onActivate: (DetectedSmartEntity) -> Void
     let onCopy: (DetectedSmartEntity) -> Void
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(entities) { entity in
-                    pillView(for: entity)
-                }
+        HStack(spacing: 6) {
+            ForEach(entities) { entity in
+                SoftEntityChip(
+                    entity: entity,
+                    onActivate: { onActivate(entity) },
+                    onCopy: { onCopy(entity) }
+                )
             }
-            .padding(.vertical, 1)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
 
-    private func pillView(for entity: DetectedSmartEntity) -> some View {
-        let tint = tintColor(for: entity.kind)
-        return Button {
-            onActivate(entity)
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: iconName(for: entity.kind))
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(tint)
+private struct SoftEntityChip: View {
+    let entity: DetectedSmartEntity
+    let onActivate: () -> Void
+    let onCopy: () -> Void
 
-                Text(prefixLabel(for: entity.kind))
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(tint)
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onActivate) {
+            HStack(spacing: 5) {
+                Image(systemName: leadingIconName)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                if entity.kind == .iban {
+                    Text("IBAN")
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
 
                 Text(entity.displayValue)
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(.primary)
+                    .font(.system(size: 11, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(.primary.opacity(isHovered ? 1.0 : 0.90))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .frame(maxWidth: 165, alignment: .leading)
+
+                Image(systemName: trailingIconName)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(isHovered ? .secondary : .tertiary)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(tint.opacity(0.11), in: Capsule())
-            .overlay(
-                Capsule().strokeBorder(tint.opacity(0.24), lineWidth: 0.75)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5.5)
+            .background(
+                Color.primary.opacity(isHovered ? 0.11 : 0.06),
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
+            .animation(.easeOut(duration: 0.14), value: isHovered)
         }
         .buttonStyle(.plain)
-        .help(tooltip(for: entity))
+        .onHover { isHovered = $0 }
+        .help(tooltip)
         .contextMenu {
-            Button(L10n.tr("context.copy")) { onCopy(entity) }
+            Button(L10n.tr("context.copy"), action: onCopy)
             if entity.openURL != nil {
-                Button(L10n.tr("preview.primary.open_in_browser")) { onActivate(entity) }
+                Button(L10n.tr("preview.primary.open_in_browser"), action: onActivate)
             }
         }
     }
 
-    private func iconName(for kind: DetectedSmartEntity.Kind) -> String {
-        switch kind {
+    private var leadingIconName: String {
+        switch entity.kind {
         case .qrURL, .qrText: return "qrcode"
         case .iban: return "banknote"
-        case .url: return "link"
+        case .url: return "globe"
         case .email: return "envelope"
-        case .phone: return "phone"
         }
     }
 
-    private func prefixLabel(for kind: DetectedSmartEntity.Kind) -> String {
-        switch kind {
-        case .qrURL, .qrText: return L10n.tr("vision.entity.qr")
-        case .iban: return "IBAN"
-        case .url: return L10n.tr("vision.entity.link")
-        case .email: return L10n.tr("vision.entity.email")
-        case .phone: return L10n.tr("vision.entity.phone")
-        }
+    private var trailingIconName: String {
+        (entity.openURL != nil && (entity.kind == .qrURL || entity.kind == .url))
+            ? "arrow.up.right"
+            : "doc.on.doc"
     }
 
-    private func tintColor(for kind: DetectedSmartEntity.Kind) -> Color {
-        switch kind {
-        case .qrURL, .qrText: return .indigo
-        case .iban: return .teal
-        case .url: return .blue
-        case .email: return .purple
-        case .phone: return .green
-        }
-    }
-
-    private func tooltip(for entity: DetectedSmartEntity) -> String {
+    private var tooltip: String {
         if entity.openURL != nil && (entity.kind == .qrURL || entity.kind == .url) {
             return L10n.format("vision.entity.open_help", entity.copyValue)
         }
