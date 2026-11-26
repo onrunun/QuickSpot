@@ -22,7 +22,7 @@ fi
 
 # 2. Scan tracked source/docs/config for secrets, private keys, or personal paths
 SCAN_TARGETS=()
-for path in Sources Resources .github scripts docs Package.swift build.sh README.md README.tr.md CONTRIBUTING.md SECURITY.md CHANGELOG.md CODE_OF_CONDUCT.md AGENTS.md LICENSE; do
+for path in Sources Resources .github scripts docs Package.swift build.sh README.md README.tr.md CONTRIBUTING.md SECURITY.md CHANGELOG.md CODE_OF_CONDUCT.md AGENTS.md THIRD_PARTY_NOTICES.md LICENSE; do
   if [[ -e "$path" ]]; then
     SCAN_TARGETS+=("$path")
   fi

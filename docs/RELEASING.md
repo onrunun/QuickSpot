@@ -1,6 +1,6 @@
 # Releasing QuickSpot
 
-QuickSpot's release pipeline (`.github/workflows/release.yml`) builds universal macOS (`arm64 + x86_64`) releases, packages `.dmg` + `.zip` + `SHA256SUMS.txt`, and optionally signs, notarizes, and updates a Homebrew Cask Tap automatically.
+QuickSpot's release pipeline (`.github/workflows/release.yml`) builds Apple Silicon (`arm64`) macOS releases, packages `.dmg` + `.zip` + `SHA256SUMS.txt`, and optionally signs, notarizes, and updates a Homebrew Cask Tap automatically.
 
 ---
 
@@ -18,26 +18,26 @@ You can also trigger a release manually from **GitHub → Actions → Release �
 
 The workflow automatically:
 - Runs `./scripts/check-privacy.sh` and `swift test`
-- Builds a universal signed `QuickSpot.app` (`arm64 + x86_64`) with all 8 bundled `.lproj` localizations
-- Produces `QuickSpot-<version>-macos-universal.dmg`, `.zip`, and `SHA256SUMS.txt`
+- Builds a signed `QuickSpot.app` (`arm64` Apple Silicon) with all 8 bundled `.lproj` localizations and `THIRD_PARTY_NOTICES.md`
+- Produces `QuickSpot-<version>-macos-arm64.dmg`, `.zip`, and `SHA256SUMS.txt`
 - Publishes a GitHub Release with auto-categorized release notes (`.github/release.yml`)
 
 ---
 
 ## 2. Enabling Automatic Homebrew Cask Updates (Optional)
 
-Once you create a public tap repository named `<your-username>/homebrew-tap`:
+Once you create a public tap repository named `onrunun/homebrew-tap`:
 
-1. Create a fine-grained Personal Access Token scoped **only** to `<your-username>/homebrew-tap` with **Contents: Read and write** permission.
+1. Create a fine-grained Personal Access Token scoped **only** to `onrunun/homebrew-tap` with **Contents: Read and write** permission.
 2. In the `QuickSpot` repository's **Settings → Secrets and variables → Actions**:
-   - Add **Variable**: `HOMEBREW_TAP_REPO` = `<your-username>/homebrew-tap`
+   - Add **Variable**: `HOMEBREW_TAP_REPO` = `onrunun/homebrew-tap`
    - Add **Secret**: `HOMEBREW_TAP_TOKEN` = `<your fine-grained PAT>`
 3. On every stable `v*.*.*` release (pre-releases are skipped automatically), `release.yml` renders `Casks/quickspot.rb` via `scripts/render-homebrew-cask.sh` with the exact `.dmg` SHA-256 and pushes it to your tap.
 
 Users can then install and update via:
 
 ```bash
-brew tap <your-username>/tap
+brew tap onrunun/tap
 brew install --cask quickspot
 ```
 

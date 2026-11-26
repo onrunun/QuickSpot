@@ -5,7 +5,7 @@ This file defines non-negotiable engineering, privacy, and localization standard
 ## Core Invariants
 
 1. **100% Local & Zero Telemetry**: Never add analytics, crash reporting, cloud API calls, or background network requests. The only network actions allowed are explicit user-initiated browser URL/search launches.
-2. **Zero External Dependencies**: Build exclusively with Apple system frameworks (`Foundation`, `AppKit`, `SwiftUI`, `Vision`, `PDFKit`, `JavaScriptCore`, `Carbon`, `SQLite3`, `IOKit`). Do not add third-party SwiftPM packages unless strictly justified and approved.
+2. **Minimal Dependency Discipline**: Build primarily with Apple system frameworks (`Foundation`, `AppKit`, `SwiftUI`, `Vision`, `PDFKit`, `Metal`, `Accelerate`, `JavaScriptCore`, `Carbon`, `SQLite3`, `IOKit`). The only approved SwiftPM package is `GemmaEmbed` (Apache-2.0) for optional on-device EmbeddingGemma 2 inference. Do not add further third-party packages unless strictly justified, license-compatible, and recorded in `THIRD_PARTY_NOTICES.md`.
 3. **Privacy Hardening**:
    - Never log user filenames, paths, clipboard items, or OCR text with `privacy: .public` in OSLog.
    - Keep sensitive files (`.env`, `.env.*`, `.pem`, `.key`, SSH keys) excluded from inline previews.

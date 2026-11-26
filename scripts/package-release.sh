@@ -50,7 +50,7 @@ fi
 
 "${BUILD_CMD[@]}"
 
-ARCH_SUFFIX="macos"
+ARCH_SUFFIX="macos-arm64"
 if [[ ${#UNIVERSAL_FLAG[@]} -gt 0 ]]; then
   ARCH_SUFFIX="macos-universal"
 fi

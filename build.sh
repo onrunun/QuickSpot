@@ -70,6 +70,11 @@ for bundle in "$BIN_DIR"/*.bundle; do
     cp -R "$bundle" "$APP/Contents/Resources/"
   fi
 done
+for notice in LICENSE THIRD_PARTY_NOTICES.md; do
+  if [[ -f "$notice" ]]; then
+    cp "$notice" "$APP/Contents/Resources/"
+  fi
+done
 
 if [[ -n "$APP_VERSION" ]]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $APP_VERSION" "$APP/Contents/Info.plist"

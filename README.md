@@ -1,10 +1,11 @@
 # QuickSpot
 
-**A fast, 100% local macOS launcher with instant fuzzy search, on-device Apple Vision OCR for images & PDFs, path navigation, quick actions, and live previews.**
+**A fast, 100% local macOS launcher with instant fuzzy search, on-device Apple Vision OCR, optional local EmbeddingGemma 2 semantic visual & document search, clipboard history, path navigation, quick actions, and live previews.**
 
 [English](README.md) · [Türkçe](README.tr.md)
 
-[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple)](https://www.apple.com/macos/)
+[![CI](https://github.com/onrunun/QuickSpot/actions/workflows/ci.yml/badge.svg)](https://github.com/onrunun/QuickSpot/actions/workflows/ci.yml)
+[![macOS 14+ Apple Silicon](https://img.shields.io/badge/macOS-14%2B%20Apple%20Silicon-000000?logo=apple)](https://www.apple.com/macos/)
 [![Swift 6](https://img.shields.io/badge/Swift-6.0-F05138?logo=swift&logoColor=white)](https://swift.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -12,14 +13,16 @@
 
 ## Highlights
 
-- **Instant Launch & Fuzzy Search** — Zero-polling in-memory application index with frecency learning, camelCase acronym matching (`vsc` → Visual Studio Code), and diacritic/multilingual folding.
-- **On-Device Image & PDF OCR Search** — Indexes text inside screenshots, photos, and scanned PDFs using Apple Vision OCR + SQLite FTS5. Battery-, thermal-, and Low Power Mode-aware background indexing.
+- **Instant Launch & Fuzzy Search** — Zero-polling in-memory application index with frecency learning, camelCase acronym matching (`vsc` → Visual Studio Code), and multilingual diacritic folding.
+- **On-Device Image & PDF OCR Search** — Indexes text inside screenshots, photos, and scanned PDFs using Apple Vision OCR + SQLite FTS5, plus smart QR code & IBAN detection. Battery-, thermal-, and Low Power Mode-aware background indexing.
+- **Optional Local Semantic Search & Near-Duplicate Finder** — Powered by on-device Apple Silicon Metal inference (`GemmaEmbed` / EmbeddingGemma 2 GGUF weights supplied by the user) to search photos and documents by meaning, find visually similar images, and review near-duplicate photos cleanly.
+- **Spotlight-Safe Setup & Custom Hotkey Recorder** — Guided first-launch setup automatically checks macOS Spotlight shortcuts so QuickSpot starts conflict-free (`⌥Space` alongside Spotlight, `⌘Space` replacing Spotlight, or any custom shortcut with live conflict detection).
 - **Progressive Spotlight File Search & Path Navigation** — Instant recent-file cache, progressive Spotlight search, and interactive filesystem browsing (`~/`, `/`) with `Tab` folder drill-down.
 - **Built-In Quick Actions & System Settings** — Math & percentage calculator (`20% of 450`, `1500 + 18%`), color converter (`#3B82F6`, `rgb(59,130,246)`), unit & Unix timestamp converter (`120 km to mi`), Terminal runner (`> git status`), URL opener, 27 macOS System Settings deep links, and macOS system commands with two-step safety confirmation for destructive actions.
 - **Privacy-First Clipboard History (`cb:` / `⇧⌘V`)** — Local searchable clipboard history that automatically ignores password managers (Apple Passwords, 1Password, Bitwarden, KeePassXC, LastPass, Dashlane) and concealed/transient pasteboard types, stored owner-only (`0600`).
-- **Context Action Palette (`⌘K`)** — Secondary actions for any item: *Open With*, *Open Folder in Terminal*, *Reveal in Finder*, *Quick Look*, *Copy Path*, *Copy OCR Text*, and confirmed *Move to Trash*.
-- **Split-Pane Live Preview** — Instant thumbnails, syntax/text snippets (automatically redacting sensitive files like `.env`, `.pem`, `.key`), OCR text copy, Finder drag-out, and Quick Look (`Space` / `⌘Y`).
-- **Zero Dependencies & Native Performance** — Built purely with Swift, AppKit, SwiftUI, Vision, PDFKit, and SQLite3. No Electron, no external packages.
+- **Context Action Palette (`⌘K`)** — Secondary actions for any item: *Open With*, *Open Folder in Terminal*, *Find Similar*, *Reveal in Finder*, *Quick Look*, *Copy Path*, *Copy OCR Text*, and confirmed *Move to Trash*.
+- **Split-Pane Live Preview** — Instant thumbnails, syntax/text snippets (automatically redacting sensitive files like `.env`, `.pem`, `.key`), QR/IBAN actions, Finder drag-out, and Quick Look (`Space` / `⌘Y`).
+- **Native macOS Performance** — Built with Swift, AppKit, SwiftUI, Vision, PDFKit, Metal, Accelerate, and SQLite3, with a single open-source SwiftPM dependency ([GemmaEmbed](https://github.com/maralski/gemma-embed-swift), Apache-2.0) for optional on-device semantic embeddings.
 
 ---
 
@@ -28,10 +31,10 @@
 QuickSpot is designed to keep your data strictly on your Mac:
 
 - **No telemetry, analytics, or crash trackers.**
-- **No cloud APIs or external servers.** Vision OCR, PDF parsing, SQLite FTS5 indexing, calculator evaluation, and Spotlight queries all run completely on-device.
-- **No automatic network requests.** The only network action QuickSpot ever triggers is opening a URL or web search in your default browser when you explicitly press Enter.
+- **No cloud APIs or external servers.** Vision OCR, PDF parsing, SQLite FTS5 indexing, optional EmbeddingGemma 2 Metal inference, calculator evaluation, and Spotlight queries all run completely on-device.
+- **No automatic network requests.** QuickSpot never downloads models or contacts remote servers in the background. The only network action ever triggered is opening a URL (such as a web search or the optional model download page) in your default browser when you explicitly click or press Enter.
 - **Sensitive file & password manager protection.** Files such as `.env`, `.env.*`, `.pem`, `.key`, and SSH private keys are excluded from inline preview rendering, and clipboard history automatically ignores password managers and `ConcealedType` / `TransientType` entries.
-- **Local storage only.** The OCR index (`image-ocr.sqlite`) and optional clipboard history (`clipboard-history.json`, `0600` permissions) live strictly in `~/Library/Application Support/QuickSpot/`, and preferences live in standard macOS `UserDefaults`.
+- **Local storage only.** Local indexes (`image-ocr.sqlite`, `image-embeddings.sqlite`, `document-embeddings.sqlite`) and optional clipboard history (`clipboard-history.json`, `0600` permissions) live strictly in `~/Library/Application Support/QuickSpot/`, and preferences live in standard macOS `UserDefaults`.
 
 ---
 
@@ -58,9 +61,9 @@ Want to add another language? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 | Input | Behavior |
 |---|---|
-| `safari`, `vsc`, `qs` | Fuzzy search apps, recent files, Spotlight, and OCR |
-| `img: receipt` | Search only images (filename + Vision OCR text) |
-| `pdf: contract` | Search only PDFs (filename + embedded/OCR text) |
+| `safari`, `vsc`, `qs` | Fuzzy search apps, recent files, Spotlight, OCR, and semantic matches |
+| `img: receipt` | Search only images (filename + Vision OCR + semantic visual search) |
+| `pdf: contract` | Search only PDFs (filename + embedded/OCR + semantic text search) |
 | `f: budget` | Search only files |
 | `dir: projects` | Search only folders |
 | `in: invoice` | Search inside file contents & OCR text |
@@ -79,12 +82,12 @@ Want to add another language? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 | Shortcut | Action |
 |---|---|
-| `⌘Space` or `⌥Space` | Toggle QuickSpot (configurable in Settings or menu bar) |
+| `⌥Space`, `⌘Space`, `⌥⌘Space`, or custom | Toggle QuickSpot (first-launch setup lets you run alongside Spotlight with zero conflict or replace `⌘Space` with live conflict detection) |
 | `↑` / `↓` | Navigate results |
 | `⏎` | Open / run selected item (destructive commands require `⏎` twice) |
 | `⌘1` – `⌘9` | Jump directly to result 1–9 |
 | `⇥` (Tab) | Drill into selected folder / path completion |
-| `⌘K` | Open secondary Action Palette (*Open With*, Terminal, Trash, etc.) |
+| `⌘K` | Open secondary Action Palette (*Open With*, *Find Similar*, Terminal, Trash, etc.) |
 | `⇧⌘V` | Jump directly to Clipboard History (`cb:`) |
 | `⌘⏎` | Reveal selected file in Finder |
 | `Space` / `⌘Y` | Toggle macOS Quick Look |
@@ -98,13 +101,13 @@ Want to add another language? See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Build from Source
 
 ### Requirements
-- macOS 14.0 (Sonoma) or later
+- Apple Silicon Mac (`arm64`) running macOS 14.0 (Sonoma) or later
 - Xcode Command Line Tools or Xcode 16+ (Swift 6.0)
 
 ### Build & Install `.app`
 
 ```bash
-git clone https://github.com/<your-username>/QuickSpot.git
+git clone https://github.com/onrunun/QuickSpot.git
 cd QuickSpot
 ./build.sh
 cp -R build.noindex/QuickSpot.app /Applications/
@@ -127,7 +130,7 @@ swift test
 
 QuickSpot only requests macOS permissions when needed:
 
-- **Folder access (Desktop, Downloads, Documents, Pictures)** — Needed for recent files and OCR indexing of folders you select in Settings.
+- **Folder access (Desktop, Downloads, Documents, Pictures)** — Needed for recent files and OCR/semantic indexing of folders you select in Settings.
 - **Automation / Accessibility (Optional)** — Only requested if you trigger macOS system commands (such as *Lock Screen*, *Toggle Dark Mode*, *Empty Trash*, or *Run in Terminal*).
 
 ---
@@ -138,4 +141,5 @@ QuickSpot only requests macOS permissions when needed:
 - [Contributing & Translations](CONTRIBUTING.md)
 - [Security Policy](SECURITY.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Third-Party Notices](THIRD_PARTY_NOTICES.md)
 - Released under the [MIT License](LICENSE).

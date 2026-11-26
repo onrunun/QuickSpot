@@ -26,27 +26,27 @@ Run the privacy, plist, and localization syntax gate (also executed in CI):
 ./scripts/check-privacy.sh
 ```
 
-Package a release (`DMG`, `ZIP`, and `SHA256SUMS.txt`):
+Package a release (`DMG`, `ZIP`, and `SHA256SUMS.txt` for Apple Silicon):
 
 ```bash
-./scripts/package-release.sh --universal --version 1.0.0
+./scripts/package-release.sh --version 1.0.0
 ```
 
 Maintainers can apply GitHub branch/tag rulesets and security settings after creating the remote repository:
 
 ```bash
-./scripts/setup-github-rules.sh --repo <owner>/QuickSpot
+./scripts/setup-github-rules.sh --repo onrunun/QuickSpot
 ```
 
 Please review our [Code of Conduct](CODE_OF_CONDUCT.md) and [Security Policy](SECURITY.md) before contributing.
 
 ## Architecture
 
-QuickSpot follows a clean vertical-slice layout with zero external dependencies:
+QuickSpot follows a clean vertical-slice layout:
 
-- `Sources/QuickSpotCore/` — Platform-independent core slices (`Localization`, `Contracts`, `AppSearch`, `FileSearch`, `ImageOCR`, `QuickActions`)
-- `Sources/QuickSpotApp/` — macOS AppKit/SwiftUI UI (`Panel`, `Preview`, `Settings`, `Hotkey`, `StatusBarMenu`)
-- `Tests/QuickSpotCoreTests/` — Unit tests covering fuzzy matching, ranking, OCR indexing, privacy rules, and localization parity
+- `Sources/QuickSpotCore/` — Core slices (`Localization`, `Contracts`, `Hotkey`, `AppSearch`, `FileSearch`, `ImageOCR`, `SemanticSearch`, `Indexing`, `Clipboard`, `QuickActions`)
+- `Sources/QuickSpotApp/` — macOS AppKit/SwiftUI UI (`Panel`, `Preview`, `Settings`, `Onboarding`, `Duplicates`, `Hotkey`, `StatusBarMenu`, `BrandIcon`)
+- `Tests/QuickSpotCoreTests/` — Unit tests covering fuzzy matching, ranking, OCR & semantic indexing, hotkey conflict detection, privacy rules, and localization parity
 
 ## Adding or Improving a Translation
 

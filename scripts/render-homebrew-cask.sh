@@ -51,7 +51,7 @@ fi
 
 VERSION_TOKEN='#{version}'
 if [[ -z "$DMG_NAME" ]]; then
-  DMG_NAME="QuickSpot-${VERSION_TOKEN}-macos-universal.dmg"
+  DMG_NAME="QuickSpot-${VERSION_TOKEN}-macos-arm64.dmg"
 else
   DMG_NAME="${DMG_NAME//$VERSION/$VERSION_TOKEN}"
 fi
@@ -63,10 +63,11 @@ cask "quickspot" do
 
   url "https://github.com/${REPO}/releases/download/v#{version}/${DMG_NAME}"
   name "QuickSpot"
-  desc "Fast, 100% local macOS launcher with on-device Apple Vision OCR"
+  desc "Fast, 100% local macOS launcher with on-device Apple Vision OCR and semantic search"
   homepage "https://github.com/${REPO}"
 
   depends_on macos: ">= :sonoma"
+  depends_on arch: :arm64
 
   app "QuickSpot.app"
 

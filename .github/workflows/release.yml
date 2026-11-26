@@ -10,11 +10,6 @@ on:
         description: 'Release version without leading v (e.g. 1.0.0)'
         required: true
         type: string
-      universal:
-        description: 'Build universal (Apple Silicon + Intel) binary'
-        required: false
-        default: true
-        type: boolean
       prerelease:
         description: 'Mark GitHub Release as pre-release'
         required: false
@@ -26,7 +21,7 @@ permissions:
 
 jobs:
   release:
-    name: Build & Publish macOS Release
+    name: Build & Publish macOS (Apple Silicon) Release
     runs-on: macos-15
     steps:
       - name: Checkout
@@ -36,18 +31,15 @@ jobs:
         id: meta
         env:
           INPUT_VERSION: ${{ inputs.version }}
-          INPUT_UNIVERSAL: ${{ inputs.universal }}
           INPUT_PRERELEASE: ${{ inputs.prerelease }}
         run: |
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             VERSION="${INPUT_VERSION#v}"
             TAG="v${VERSION}"
-            UNIVERSAL="${INPUT_UNIVERSAL:-true}"
             PRERELEASE="${INPUT_PRERELEASE:-false}"
           else
             TAG="${GITHUB_REF_NAME}"
             VERSION="${TAG#v}"
-            UNIVERSAL="true"
             if [[ "$VERSION" == *-* ]]; then
               PRERELEASE="true"
             else
@@ -56,7 +48,6 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "universal=$UNIVERSAL" >> "$GITHUB_OUTPUT"
           echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
 
       - name: Run privacy gate & unit tests
@@ -87,11 +78,9 @@ jobs:
         env:
           CODESIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY || '-' }}
         run: |
-          ARGS=(--version "${{ steps.meta.outputs.version }}" --build-number "${GITHUB_RUN_NUMBER}")
-          if [[ "${{ steps.meta.outputs.universal }}" == "true" ]]; then
-            ARGS+=(--universal)
-          fi
-          ./scripts/package-release.sh "${ARGS[@]}"
+          ./scripts/package-release.sh \
+            --version "${{ steps.meta.outputs.version }}" \
+            --build-number "${GITHUB_RUN_NUMBER}"
 
       - name: Notarize and staple DMG (optional)
         if: ${{ secrets.APPLE_NOTARY_KEY_BASE64 != '' && secrets.APPLE_NOTARY_KEY_ID != '' && secrets.APPLE_NOTARY_ISSUER_ID != '' }}

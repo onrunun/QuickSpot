@@ -2,9 +2,9 @@
 
 ## Local-Only Privacy & Threat Model
 
-QuickSpot runs 100% locally on macOS with zero external dependencies, zero telemetry, and no cloud APIs:
+QuickSpot runs 100% locally on macOS with zero telemetry and no cloud APIs:
 
-- All OCR indexing (Apple Vision + PDFKit + SQLite FTS5), Spotlight queries, calculator evaluations, and clipboard history happen strictly on-device.
+- All OCR indexing (Apple Vision + PDFKit + SQLite FTS5), optional EmbeddingGemma 2 Metal semantic inference (`GemmaEmbed`, Apache-2.0, using user-supplied local GGUF weights), Spotlight queries, calculator evaluations, and clipboard history happen strictly on-device.
 - Clipboard history automatically excludes password managers (`Apple Passwords`, `1Password`, `Bitwarden`, `KeePassXC`, `LastPass`, `Dashlane`, `Keychain Access`) and `ConcealedType` / `TransientType` pasteboard entries, and persists local history with owner-only `0600` permissions.
 - Sensitive files (`.env`, `.env.*`, `.pem`, `.key`, `.p12`, SSH keys) are excluded from inline text previews.
 - Destructive system/file actions require explicit two-step keyboard confirmation (`⏎` twice).
