@@ -32,6 +32,14 @@ Package a release (`DMG`, `ZIP`, and `SHA256SUMS.txt`):
 ./scripts/package-release.sh --universal --version 1.0.0
 ```
 
+Maintainers can apply GitHub branch/tag rulesets and security settings after creating the remote repository:
+
+```bash
+./scripts/setup-github-rules.sh --repo <owner>/QuickSpot
+```
+
+Please review our [Code of Conduct](CODE_OF_CONDUCT.md) and [Security Policy](SECURITY.md) before contributing.
+
 ## Architecture
 
 QuickSpot follows a clean vertical-slice layout with zero external dependencies:

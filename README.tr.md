@@ -59,8 +59,11 @@ open /Applications/QuickSpot.app
 swift test
 ```
 
+> **macOS Gatekeeper Notu (Hazır İndirmeler):** Apple Developer ID ile notarize edilmemiş ad-hoc imzalı sürümlerde macOS ilk açılışta Gatekeeper uyarısı gösterebilir. Yukarıdaki gibi doğrudan kaynaktan derleyebilir veya hazır `.dmg` paketini ilk kez **Sistem Ayarları → Gizlilik ve Güvenlik → Yine de Aç** seçeneğiyle (ya da `xattr -dr com.apple.quarantine /Applications/QuickSpot.app` komutuyla) açabilirsiniz.
+
 ---
 
-## Lisans
+## Topluluk, Güvenlik ve Lisans
 
-[MIT Lisansı](LICENSE) altında yayınlanmıştır.
+- [Değişiklik Günlüğü](CHANGELOG.md) · [Katkı ve Çeviri Rehberi](CONTRIBUTING.md) · [Güvenlik Politikası](SECURITY.md) · [Davranış Kuralları](CODE_OF_CONDUCT.md)
+- [MIT Lisansı](LICENSE) altında yayınlanmıştır.

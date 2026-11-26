@@ -1,0 +1,15 @@
+* text=auto eol=lf
+
+*.swift text diff=swift
+*.strings text working-tree-encoding=UTF-8
+*.plist text
+*.sh text eol=lf
+*.yml text
+*.yaml text
+*.md text
+
+*.icns binary
+*.png binary
+*.jpg binary
+*.dmg binary
+*.zip binary

@@ -1,0 +1,9 @@
+# Default reviewers for QuickSpot pull requests.
+# Update the handle below if publishing under a different GitHub account or organization.
+
+* @onrunun
+/.github/ @onrunun
+/scripts/ @onrunun
+/Resources/Info.plist @onrunun
+/Sources/QuickSpotCore/Localization/ @onrunun
+/Sources/QuickSpotCore/Resources/ @onrunun

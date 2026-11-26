@@ -111,7 +111,9 @@ cp -R build.noindex/QuickSpot.app /Applications/
 open /Applications/QuickSpot.app
 ```
 
-> **Note on code signing:** By default, `./build.sh` ad-hoc signs the app (`-`). If you have a local signing identity (e.g. a self-signed certificate or Apple Development certificate) and want macOS permissions to persist across rebuilds, create an ignored `.sign-id` file containing your certificate name before running `./build.sh`.
+> **Note on macOS Gatekeeper (pre-built downloads):** Ad-hoc signed community releases are not notarized by Apple. If macOS displays a Gatekeeper warning on first launch, either build directly from source above, or open `QuickSpot.app` once via **System Settings → Privacy & Security → Open Anyway** (or run `xattr -dr com.apple.quarantine /Applications/QuickSpot.app`).
+
+> **Note on local code signing:** By default, `./build.sh` ad-hoc signs the app (`-`). If you have a local signing identity (e.g. a self-signed certificate or Apple Development certificate) and want macOS permissions to persist across rebuilds, create an ignored `.sign-id` file containing your certificate name before running `./build.sh`.
 
 ### Run Tests
 
@@ -130,6 +132,10 @@ QuickSpot only requests macOS permissions when needed:
 
 ---
 
-## License
+## Community, Security & License
 
-Released under the [MIT License](LICENSE).
+- [Changelog](CHANGELOG.md)
+- [Contributing & Translations](CONTRIBUTING.md)
+- [Security Policy](SECURITY.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- Released under the [MIT License](LICENSE).
