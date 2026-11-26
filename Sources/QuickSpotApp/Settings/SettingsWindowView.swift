@@ -1,178 +1,162 @@
 import QuickSpotCore
 import SwiftUI
 
-/// Native macOS Settings window covering Vision OCR indexing, watched folders, battery policy, and general options.
+/// Native macOS sidebar-driven Settings & Indexing window.
 struct SettingsWindowView: View {
     @ObservedObject var viewModel: SettingsViewModel
+    @State private var hoveredTab: SettingsTab?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ocrSection
-            foldersSection
-            generalSection
+        HStack(spacing: 0) {
+            sidebar
+            Rectangle()
+                .fill(Color.primary.opacity(0.09))
+                .frame(width: 0.75)
+            detailPane
         }
-        .padding(18)
-        .frame(width: 520)
-        .frame(minHeight: 530)
+        .frame(width: 640, height: 480)
         .id(viewModel.appLanguage)
     }
 
-    private var ocrSection: some View {
-        GroupBox(L10n.tr("settings.ocr.section")) {
-            VStack(alignment: .leading, spacing: 10) {
-                Toggle(L10n.tr("settings.ocr.enable_toggle"), isOn: Binding(
-                    get: { viewModel.settings.isOCREnabled },
-                    set: { viewModel.toggleOCREnabled($0) }
-                ))
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            brandHeader
+                .padding(.top, 36)
+                .padding(.horizontal, 14)
 
-                HStack(spacing: 8) {
-                    statusIcon
-                    Text(statusText)
-                        .font(.system(size: 12, weight: .medium))
-                    Spacer()
-                    if case .indexing(let done, let total) = viewModel.progress.state, total > 0 {
-                        ProgressView(value: Double(done), total: Double(total))
-                            .frame(width: 130)
-                    } else if case .scanning = viewModel.progress.state {
-                        ProgressView().controlSize(.small)
-                    }
+            VStack(spacing: 3) {
+                ForEach(SettingsTab.allCases) { tab in
+                    sidebarButton(for: tab)
                 }
+            }
+            .padding(.horizontal, 10)
 
-                Text(L10n.format("settings.ocr.stats", viewModel.progress.indexedCount, viewModel.progress.withTextCount))
-                    .font(.system(size: 11.5))
+            Spacer(minLength: 12)
+
+            HStack(spacing: 6) {
+                Image(systemName: "lock.shield.fill")
+                    .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
-
-                Toggle(L10n.tr("settings.ocr.battery_toggle"), isOn: Binding(
-                    get: { viewModel.settings.indexOnBattery },
-                    set: { viewModel.toggleIndexOnBattery($0) }
-                ))
-                .font(.system(size: 12.5))
-
-                HStack(spacing: 8) {
-                    Button(L10n.tr("settings.ocr.index_now")) { viewModel.triggerIndexNow() }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!viewModel.settings.isOCREnabled)
-                    Button(L10n.tr("settings.ocr.rescan_empty")) { viewModel.reindexEmptyImages() }
-                        .disabled(!viewModel.settings.isOCREnabled)
-                        .help(L10n.tr("settings.ocr.rescan_empty_help"))
-                    Button(L10n.tr("settings.ocr.rebuild")) { viewModel.rebuildIndex() }
-                        .disabled(!viewModel.settings.isOCREnabled)
-                }
-                .controlSize(.small)
+                Text(L10n.tr("settings.sidebar.local_badge"))
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            .padding(6)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 14)
         }
+        .frame(width: 176, alignment: .topLeading)
+        .frame(maxHeight: .infinity)
+        .background(SettingsSidebarBackdrop())
     }
 
-    private var foldersSection: some View {
-        GroupBox(L10n.tr("settings.folders.section")) {
-            VStack(alignment: .leading, spacing: 8) {
-                if viewModel.settings.folders.isEmpty {
-                    Text(L10n.tr("settings.folders.empty"))
-                        .font(.system(size: 12))
+    private var brandHeader: some View {
+        HStack(spacing: 10) {
+            Image(nsImage: BrandIcon.appIconImage(pixels: 96))
+                .resizable()
+                .frame(width: 30, height: 30)
+                .shadow(color: .black.opacity(0.16), radius: 3, y: 1)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("QuickSpot")
+                    .font(.system(size: 13.5, weight: .semibold))
+                    .foregroundStyle(.primary)
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(liveDotColor)
+                        .frame(width: 6, height: 6)
+                    Text(liveSummaryLabel)
+                        .font(.system(size: 10.5, weight: .medium))
                         .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, minHeight: 110)
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 4) {
-                            ForEach(viewModel.settings.folders, id: \.self) { folderRow($0) }
-                        }
-                    }
-                    .frame(height: 125)
+                        .lineLimit(1)
                 }
-                Button(L10n.tr("settings.folders.add_button")) { viewModel.addFolderViaPanel() }
-                    .controlSize(.small)
             }
-            .padding(6)
+        }
+    }
+
+    private func sidebarButton(for tab: SettingsTab) -> some View {
+        let isSelected = viewModel.selectedTab == tab
+        let isHovered = hoveredTab == tab
+        return Button {
+            withAnimation(.easeOut(duration: 0.14)) {
+                viewModel.selectedTab = tab
+            }
+        } label: {
+            HStack(spacing: 9) {
+                SettingsIconBadge(symbol: tab.symbol, tint: tab.badgeTint)
+                Text(tab.title)
+                    .font(.system(size: 12.5, weight: isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6.5)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(
+                        isSelected
+                            ? Color.accentColor.opacity(0.18)
+                            : (isHovered ? Color.primary.opacity(0.05) : Color.clear)
+                    )
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            hoveredTab = hovering ? tab : (hoveredTab == tab ? nil : hoveredTab)
+        }
+    }
+
+    private var detailPane: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 18) {
+                Text(viewModel.selectedTab.title)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.primary)
+
+                switch viewModel.selectedTab {
+                case .indexing:
+                    SettingsIndexingTabView(viewModel: viewModel)
+                case .folders:
+                    SettingsFoldersSectionView(viewModel: viewModel)
+                case .general:
+                    SettingsGeneralTabView(viewModel: viewModel)
+                }
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 24)
+            .padding(.bottom, 22)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func folderRow(_ folder: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "folder.fill").foregroundStyle(.blue)
-            Text(folder.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
-                .font(.system(size: 12)).lineLimit(1).truncationMode(.middle)
-            Spacer()
-            Button { viewModel.removeFolder(folder) } label: {
-                Image(systemName: "trash").foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help(L10n.tr("settings.folders.remove_help"))
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+    private var liveDotColor: Color {
+        if !viewModel.settings.isOCREnabled && !viewModel.semanticSettings.isEnabled { return .secondary }
+        if isIndexingActive { return .blue }
+        if case .paused = viewModel.progress.state { return .orange }
+        if case .paused = viewModel.semanticProgress.state { return .orange }
+        return .green
     }
 
-    private var generalSection: some View {
-        GroupBox(L10n.tr("settings.general.section")) {
-            VStack(alignment: .leading, spacing: 10) {
-                Picker(L10n.tr("settings.general.hotkey_label"), selection: Binding(
-                    get: { viewModel.hotkeyPreset },
-                    set: { viewModel.selectHotkey($0) }
-                )) {
-                    ForEach(HotkeyPreset.allCases, id: \.self) { preset in
-                        Text(preset.title).tag(preset)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                Picker(L10n.tr("settings.general.language_label"), selection: Binding(
-                    get: { viewModel.appLanguage },
-                    set: { viewModel.selectLanguage($0) }
-                )) {
-                    ForEach(AppLanguage.allCases, id: \.self) { language in
-                        Text(language.displayName).tag(language)
-                    }
-                }
-                .pickerStyle(.menu)
-
-                Toggle(L10n.tr("settings.general.launch_at_login"), isOn: Binding(
-                    get: { viewModel.launchAtLogin },
-                    set: { viewModel.toggleLaunchAtLogin($0) }
-                ))
-
-                Divider().opacity(0.4)
-
-                HStack(spacing: 8) {
-                    Toggle(L10n.tr("settings.clipboard.toggle"), isOn: Binding(
-                        get: { viewModel.clipboardEnabled },
-                        set: { viewModel.toggleClipboardEnabled($0) }
-                    ))
-                    Spacer()
-                    Text("\(viewModel.clipboardCount)")
-                        .font(.system(size: 11).monospacedDigit())
-                        .foregroundStyle(.secondary)
-                    Button(L10n.tr("settings.clipboard.clear")) { viewModel.clearClipboardHistory() }
-                        .controlSize(.small)
-                        .disabled(viewModel.clipboardCount == 0)
-                }
-            }
-            .padding(6)
-            .frame(maxWidth: .infinity, alignment: .leading)
+    private var liveSummaryLabel: String {
+        if !viewModel.settings.isOCREnabled && !viewModel.semanticSettings.isEnabled {
+            return L10n.tr("menu.indexing.disabled")
         }
+        if case .indexing(let d, let t) = viewModel.progress.state { return "OCR \(d)/\(t)" }
+        if case .indexing(let d, let t) = viewModel.semanticProgress.state { return "AI \(d)/\(t)" }
+        if isIndexingActive { return L10n.tr("panel.ocr_scanning") }
+        if case .paused = viewModel.progress.state { return L10n.tr("panel.ocr_paused_badge") }
+        if case .paused = viewModel.semanticProgress.state { return L10n.tr("panel.ocr_paused_badge") }
+        return L10n.tr("settings.ocr.ready")
     }
 
-    private var statusIcon: some View {
-        switch viewModel.progress.state {
-        case .idle:
-            return Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-        case .scanning, .indexing:
-            return Image(systemName: "arrow.triangle.2.circlepath.circle.fill").foregroundStyle(.blue)
-        case .paused:
-            return Image(systemName: "pause.circle.fill").foregroundStyle(.orange)
-        }
-    }
-
-    private var statusText: String {
-        if !viewModel.settings.isOCREnabled { return L10n.tr("settings.ocr.disabled") }
-        switch viewModel.progress.state {
-        case .idle: return L10n.tr("settings.ocr.ready")
-        case .scanning: return L10n.tr("settings.ocr.scanning")
-        case .indexing(let done, let total): return L10n.format("settings.ocr.indexing", done, total)
-        case .paused(let reason): return L10n.format("settings.ocr.paused", reason)
-        }
+    private var isIndexingActive: Bool {
+        if case .scanning = viewModel.progress.state { return true }
+        if case .indexing = viewModel.progress.state { return true }
+        if case .scanning = viewModel.semanticProgress.state { return true }
+        if case .indexing = viewModel.semanticProgress.state { return true }
+        return false
     }
 }

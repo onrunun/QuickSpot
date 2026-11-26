@@ -106,7 +106,7 @@ public enum ResultRanker: Sendable {
             let key = canonicalKey(for: item)
             let kind: SignalKind
             switch item.matchSource {
-            case .ocrContent, .fileContent:
+            case .ocrContent, .semanticVisual, .semanticText, .fileContent:
                 kind = .content
             case .name, .recent, .path, .quickAction, .clipboard:
                 kind = defaultKind
@@ -251,7 +251,9 @@ public enum ResultRanker: Sendable {
         case .application:
             return .app
         case .folder, .file:
-            return item.matchSource == .ocrContent ? .ocr : .fileOrFolder
+            return (item.matchSource == .ocrContent || item.matchSource == .semanticVisual || item.matchSource == .semanticText)
+                ? .ocr
+                : .fileOrFolder
         }
     }
 

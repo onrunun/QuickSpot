@@ -4,6 +4,8 @@ import QuickSpotCore
 /// Action executable from the `⌘K` secondary action palette.
 enum PaletteActionKind: Equatable {
     case open
+    case findSimilar
+    case removeBackground
     case enterFolder
     case openWith(URL)
     case revealInFinder
@@ -51,7 +53,11 @@ struct PaletteActionItem: Identifiable, Equatable {
 
 /// Builds context-aware secondary actions (`Open With`, Terminal, Trash, Clipboard management) for any result.
 enum ActionPaletteBuilder {
-    static func buildActions(for item: SearchItem, fullOCRText: String?) -> [PaletteActionItem] {
+    static func buildActions(
+        for item: SearchItem,
+        fullOCRText: String?,
+        canFindSimilar: Bool = false
+    ) -> [PaletteActionItem] {
         if item.matchSource == .clipboard, item.id.hasPrefix("clip:") {
             let entryID = String(item.id.dropFirst(5))
             return [
@@ -82,7 +88,7 @@ enum ActionPaletteBuilder {
         }
 
         if let url = item.previewURL, url.isFileURL {
-            return buildFileActions(item: item, url: url, fullOCRText: fullOCRText)
+            return buildFileActions(item: item, url: url, fullOCRText: fullOCRText, canFindSimilar: canFindSimilar)
         }
 
         return [
@@ -106,7 +112,8 @@ enum ActionPaletteBuilder {
     private static func buildFileActions(
         item: SearchItem,
         url: URL,
-        fullOCRText: String?
+        fullOCRText: String?,
+        canFindSimilar: Bool
     ) -> [PaletteActionItem] {
         var actions: [PaletteActionItem] = [
             PaletteActionItem(
@@ -117,6 +124,27 @@ enum ActionPaletteBuilder {
                 kind: .open
             )
         ]
+
+        if canFindSimilar {
+            actions.append(PaletteActionItem(
+                id: "act:find-similar",
+                title: L10n.tr("palette.find_similar"),
+                subtitle: L10n.tr("palette.find_similar_subtitle"),
+                sfSymbol: "sparkles",
+                shortcutHint: "⇧⌘S",
+                kind: .findSimilar
+            ))
+        }
+
+        if VisionTextExtractor.isSupportedImage(url) {
+            actions.append(PaletteActionItem(
+                id: "act:remove-bg",
+                title: L10n.tr("palette.remove_bg"),
+                subtitle: L10n.tr("palette.remove_bg_subtitle"),
+                sfSymbol: "person.and.background.dotted",
+                kind: .removeBackground
+            ))
+        }
 
         if item.category == .folder {
             actions.append(PaletteActionItem(

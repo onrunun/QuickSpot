@@ -15,7 +15,11 @@ extension PanelViewModel {
     func openActionPalette() {
         guard let item = selectedItem else { return }
         onCancelPendingHide?()
-        let actions = ActionPaletteBuilder.buildActions(for: item, fullOCRText: selectedFullOCRText)
+        let actions = ActionPaletteBuilder.buildActions(
+            for: item,
+            fullOCRText: selectedFullOCRText,
+            canFindSimilar: selectedSimilarityKind != nil
+        )
         guard !actions.isEmpty else { return }
         actionPaletteItems = actions
         actionPaletteIndex = 0
@@ -81,6 +85,16 @@ extension PanelViewModel {
             closeActionPalette()
             return executeSelected(revealInFinder: false)
 
+        case .findSimilar:
+            closeActionPalette()
+            findSimilarForSelected()
+            return false
+
+        case .removeBackground:
+            closeActionPalette()
+            removeBackgroundAndCopySelected()
+            return false
+
         case .enterFolder:
             closeActionPalette()
             _ = autocompleteWithTab()
@@ -135,6 +149,9 @@ extension PanelViewModel {
             switch FileActionService.moveToTrash(fileURL) {
             case .success:
                 let trashedPath = fileURL.standardizedFileURL.path
+                if similarAnchor?.url?.standardizedFileURL.path == trashedPath {
+                    exitSimilarMode(restorePreviousQuery: false)
+                }
                 recentResults.removeAll { $0.previewURL?.standardizedFileURL.path == trashedPath }
                 fileResults.removeAll { $0.previewURL?.standardizedFileURL.path == trashedPath }
                 ocrResults.removeAll { $0.previewURL?.standardizedFileURL.path == trashedPath }

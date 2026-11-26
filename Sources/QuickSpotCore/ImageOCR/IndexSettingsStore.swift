@@ -1,31 +1,35 @@
 import Foundation
 
-/// Persistent preferences controlling which folders and power conditions are used for image OCR indexing.
+/// Persistent preferences controlling which folders, speed mode, and power conditions are used for indexing.
 public struct IndexSettings: Equatable, Sendable {
     public var folders: [String]
     public var excludedFolders: [String]
     public var indexOnBattery: Bool
     public var isOCREnabled: Bool
+    public var indexingMode: IndexingMode
 
     public init(
         folders: [String],
         indexOnBattery: Bool = false,
         isOCREnabled: Bool = true,
-        excludedFolders: [String] = []
+        excludedFolders: [String] = [],
+        indexingMode: IndexingMode = .quiet
     ) {
         self.folders = folders
         self.excludedFolders = excludedFolders
         self.indexOnBattery = indexOnBattery
         self.isOCREnabled = isOCREnabled
+        self.indexingMode = indexingMode
     }
 }
 
-/// Thread-safe UserDefaults store for image OCR folder and power settings.
+/// Thread-safe UserDefaults store for folder, speed mode, and power settings.
 public final class IndexSettingsStore: @unchecked Sendable {
     private static let foldersKey = "QuickSpot.ocr.folders"
     private static let excludedFoldersKey = "QuickSpot.ocr.excludedFolders"
     private static let batteryKey = "QuickSpot.ocr.indexOnBattery"
     private static let enabledKey = "QuickSpot.ocr.enabled"
+    private static let indexingModeKey = "QuickSpot.indexing.mode"
 
     private let defaults: UserDefaults
     private let lock = NSLock()
@@ -58,11 +62,13 @@ public final class IndexSettingsStore: @unchecked Sendable {
         let excluded = defaults.stringArray(forKey: Self.excludedFoldersKey) ?? []
         let onBattery = defaults.bool(forKey: Self.batteryKey)
         let enabled = defaults.object(forKey: Self.enabledKey) as? Bool ?? true
+        let mode = defaults.string(forKey: Self.indexingModeKey).flatMap(IndexingMode.init(rawValue:)) ?? .quiet
         return IndexSettings(
             folders: deduplicated(folders),
             indexOnBattery: onBattery,
             isOCREnabled: enabled,
-            excludedFolders: deduplicated(excluded)
+            excludedFolders: deduplicated(excluded),
+            indexingMode: mode
         )
     }
 
@@ -73,6 +79,7 @@ public final class IndexSettingsStore: @unchecked Sendable {
         defaults.set(deduplicated(settings.excludedFolders), forKey: Self.excludedFoldersKey)
         defaults.set(settings.indexOnBattery, forKey: Self.batteryKey)
         defaults.set(settings.isOCREnabled, forKey: Self.enabledKey)
+        defaults.set(settings.indexingMode.rawValue, forKey: Self.indexingModeKey)
     }
 
     @discardableResult

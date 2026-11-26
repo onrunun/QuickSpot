@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 /// Live indexing state exposed to the Settings & Indexing window.
@@ -46,7 +47,9 @@ enum ImageFolderCrawler {
     ]
 
     private static let resourceKeys: [URLResourceKey] = [
-        .isDirectoryKey, .isPackageKey, .isSymbolicLinkKey, .contentModificationDateKey, .fileSizeKey
+        .isDirectoryKey, .isPackageKey, .isSymbolicLinkKey,
+        .contentModificationDateKey, .fileSizeKey,
+        .isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey
     ]
 
     private static let minImageBytes: Int64 = 4_096
@@ -56,15 +59,20 @@ enum ImageFolderCrawler {
     static func crawl(
         folders: [String],
         excludedPaths: [String] = [],
-        excludedFolderNames: Set<String> = []
+        excludedFolderNames: Set<String> = [],
+        throttleDelayProvider: (() -> TimeInterval)? = nil,
+        shouldCancel: (() -> Bool)? = nil
     ) -> [DiscoveredImage] {
         let fm = FileManager.default
         let keySet = Set(resourceKeys)
         let normalizedExcluded = normalizePaths(excludedPaths)
+        let cancelCheck = shouldCancel ?? { Task.isCancelled }
         var seen = Set<String>()
         var results: [DiscoveredImage] = []
+        var inspectedCount = 0
 
         for folder in folders {
+            if cancelCheck() { return [] }
             let rootPath = normalizePath(folder)
             guard !rootPath.isEmpty, !isExcludedPath(rootPath, excludedPaths: normalizedExcluded) else { continue }
             let root = URL(fileURLWithPath: rootPath, isDirectory: true)
@@ -75,6 +83,13 @@ enum ImageFolderCrawler {
             ) else { continue }
 
             while let next = enumerator.nextObject() as? URL {
+                inspectedCount &+= 1
+                if (inspectedCount & 63) == 0 && cancelCheck() { return [] }
+                if (inspectedCount & 255) == 0, let delay = throttleDelayProvider?(), delay > 0.0005 {
+                    Thread.sleep(forTimeInterval: delay)
+                    if cancelCheck() { return [] }
+                }
+
                 let values: URLResourceValues
                 do {
                     values = try next.resourceValues(forKeys: keySet)
@@ -95,7 +110,9 @@ enum ImageFolderCrawler {
                 }
 
                 guard !isExcludedPath(path, excludedPaths: normalizedExcluded) else { continue }
-                guard values.isSymbolicLink != true, VisionTextExtractor.isSupportedDocument(next) else { continue }
+                guard values.isSymbolicLink != true,
+                      !isCloudDataless(url: next, values: values),
+                      VisionTextExtractor.isSupportedDocument(next) else { continue }
 
                 let size = Int64(values.fileSize ?? 0)
                 let minBytes = next.pathExtension.lowercased() == "pdf" ? minPDFBytes : minImageBytes
@@ -104,6 +121,7 @@ enum ImageFolderCrawler {
                 results.append(DiscoveredImage(url: URL(fileURLWithPath: path), mtime: mtime, size: size))
             }
         }
+        results.sort { $0.mtime > $1.mtime }
         return results
     }
 
@@ -120,10 +138,13 @@ enum ImageFolderCrawler {
         guard !isExcludedPath(stdPath, excludedPaths: normalizedExcluded) else { return nil }
 
         let normalizedRoots = normalizePaths(allowedRoots)
-        guard let matchingRoot = normalizedRoots.first(where: { root in
-            let prefix = root == "/" ? "/" : root + "/"
-            return stdPath.hasPrefix(prefix) && stdPath != root
-        }) else { return nil }
+        guard let matchingRoot = normalizedRoots
+            .filter({ root in
+                let prefix = root == "/" ? "/" : root + "/"
+                return stdPath.hasPrefix(prefix) && stdPath != root
+            })
+            .max(by: { $0.count < $1.count })
+        else { return nil }
 
         let rootPrefix = matchingRoot == "/" ? "/" : matchingRoot + "/"
         let relative = String(stdPath.dropFirst(rootPrefix.count))
@@ -157,7 +178,10 @@ enum ImageFolderCrawler {
         } catch {
             return nil
         }
-        guard values.isDirectory != true, values.isPackage != true, values.isSymbolicLink != true else {
+        guard values.isDirectory != true,
+              values.isPackage != true,
+              values.isSymbolicLink != true,
+              !isCloudDataless(url: url, values: values) else {
             return nil
         }
 
@@ -166,6 +190,54 @@ enum ImageFolderCrawler {
         guard size >= minBytes else { return nil }
         let mtime = values.contentModificationDate?.timeIntervalSince1970 ?? 0
         return DiscoveredImage(url: url, mtime: mtime, size: size)
+    }
+
+    /// Unified ignore check shared by FSEvents watcher and crawler so cache/VCS/bundle paths (e.g. `.photoslibrary`) never trigger thrashing.
+    static func shouldIgnoreEventPath(
+        _ rawPath: String,
+        watchedRoots: [String] = [],
+        excludedPaths: [String] = [],
+        excludedFolderNames: Set<String> = []
+    ) -> Bool {
+        let stdPath = normalizePath(rawPath)
+        guard !stdPath.isEmpty else { return true }
+        let normalizedExcluded = normalizePaths(excludedPaths)
+        if isExcludedPath(stdPath, excludedPaths: normalizedExcluded) {
+            return true
+        }
+
+        let normalizedRoots = normalizePaths(watchedRoots)
+        let relativePath: String
+        if let root = normalizedRoots
+            .filter({ stdPath == $0 || stdPath.hasPrefix($0 == "/" ? "/" : $0 + "/") })
+            .max(by: { $0.count < $1.count }) {
+            if stdPath == root { return false }
+            let prefix = root == "/" ? "/" : root + "/"
+            relativePath = String(stdPath.dropFirst(prefix.count))
+        } else {
+            relativePath = stdPath
+        }
+
+        let components = relativePath.split(separator: "/").map(String.init)
+        for component in components {
+            if component.hasPrefix(".") || isIgnoredDirectory(name: component, excludedFolderNames: excludedFolderNames) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Returns true if a file is an evicted iCloud / FileProvider dataless placeholder whose read would trigger a cloud download.
+    static func isCloudDataless(url: URL, values: URLResourceValues) -> Bool {
+        if values.isUbiquitousItem == true,
+           values.ubiquitousItemDownloadingStatus == .notDownloaded {
+            return true
+        }
+        var st = stat()
+        if lstat(url.path, &st) == 0, (st.st_flags & UInt32(SF_DATALESS)) != 0 {
+            return true
+        }
+        return false
     }
 
     static func canHandleIncrementally(_ paths: [String], maxBatch: Int = 30) -> Bool {
@@ -206,65 +278,5 @@ enum ImageFolderCrawler {
             return String(std.dropLast())
         }
         return std
-    }
-}
-
-public extension ImageOCRIndexer {
-    static func parsePrefix(_ raw: String) -> (filter: SearchKindFilter?, cleanQuery: String) {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if case .filtered(let filter, let term) = QueryParser.parse(trimmed).mode,
-           filter == .imagesOnly || filter == .pdfOnly {
-            return (filter, term)
-        }
-        return (nil, trimmed)
-    }
-
-    static func matchesFilter(_ filter: SearchKindFilter?, url: URL) -> Bool {
-        switch filter {
-        case .imagesOnly:
-            return VisionTextExtractor.isSupportedImage(url)
-        case .pdfOnly:
-            return url.pathExtension.lowercased() == "pdf"
-        case .filesOnly, .contentOnly, nil:
-            return true
-        case .foldersOnly, .appsOnly, .clipboard:
-            return false
-        }
-    }
-
-    static func calibratedOCRScore(
-        rankIndex: Int,
-        mtime: Double,
-        now: Double,
-        fileName: String,
-        queryTokens: [String]
-    ) -> Int {
-        let rankBase = max(480, 640 - rankIndex * 14)
-        let recencyBonus: Int
-        if mtime <= 0 {
-            recencyBonus = 0
-        } else {
-            let age = max(0, now - mtime)
-            if age < 86_400 {
-                recencyBonus = 45
-            } else if age < 7 * 86_400 {
-                recencyBonus = 30
-            } else if age < 30 * 86_400 {
-                recencyBonus = 15
-            } else {
-                recencyBonus = 0
-            }
-        }
-        let foldedName = VisionTextExtractor.normalizeForSearch(fileName)
-        let filenameBonus = queryTokens.contains(where: { foldedName.contains($0) }) ? 30 : 0
-        return min(710, max(480, rankBase + recencyBonus + filenameBonus))
-    }
-
-    static func normalizedQueryTokens(from query: String) -> [String] {
-        let all = VisionTextExtractor.normalizeForSearch(query)
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-        let significant = all.filter { $0.count >= 2 }
-        return significant.isEmpty ? all : significant
     }
 }

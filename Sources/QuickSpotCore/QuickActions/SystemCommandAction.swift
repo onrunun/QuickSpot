@@ -147,6 +147,27 @@ public enum SystemCommandAction {
                 "caffeinate", "prevent sleep", "keep awake", "uykuyu engelle", "uyanik tut",
                 "wach halten", "evitar reposo", "empecher veille", "スリープ防止", "防止睡眠", "evitar repouso"
             ]
+        ),
+        Definition(
+            id: "duplicates",
+            titleKey: "sys.duplicates.title",
+            subtitleKey: "sys.duplicates.subtitle",
+            symbol: "photo.on.rectangle.angled",
+            aliases: [
+                "duplicates", "duplicate photos", "find duplicates", "ikiz", "ikiz fotograflar",
+                "kopya fotograflar", "duplikate", "duplicados", "doublons", "重複写真", "重复照片", "fotos duplicadas"
+            ]
+        ),
+        Definition(
+            id: "clipboard_similar",
+            titleKey: "sys.clipboard_similar.title",
+            subtitleKey: "sys.clipboard_similar.subtitle",
+            symbol: "sparkles.rectangle.stack",
+            aliases: [
+                "clipboard similar", "reverse image", "clipboard image", "pano benzer", "panodaki gorsel",
+                "ters gorsel", "zwischenablage bild", "imagen portapapeles", "image presse-papiers",
+                "クリップボード画像", "剪贴板图片", "imagem area de transferencia"
+            ]
         )
     ]
 

@@ -1,37 +1,53 @@
 import CoreServices
 import Foundation
 
-/// Recursively watches user-selected folders via macOS FSEvents while filtering noisy cache/VCS paths.
-final class FSEventFolderWatcher: @unchecked Sendable {
-    private static let ignoredFragments = [
-        "/.git/", "/node_modules/", "/.build/", "/.next/", "/.Trash/", "/Library/",
-        "/DerivedData/", "/Pods/", "/.Spotlight-V100/", "/.fseventsd/",
-        "/.cache/", "/__pycache__/", "/.venv/", "/build.noindex/",
-        ".xcodeproj/", ".xcassets/"
-    ]
+/// Coalesced filesystem change notification emitted by `FSEventFolderWatcher`.
+struct FolderChangeBatch: Sendable {
+    let paths: [String]
+    let requiresFullScan: Bool
+}
 
+/// Recursively watches user-selected folders via macOS FSEvents while filtering noisy cache/VCS/package paths.
+final class FSEventFolderWatcher: @unchecked Sendable {
     private let lock = NSLock()
     private let queue = DispatchQueue(label: "QuickSpot.FSEvents", qos: .utility)
+    private let watchedRoots: [String]
     private let excludedPaths: [String]
-    private let onChange: @Sendable ([String]) -> Void
+    private let onBatch: @Sendable (FolderChangeBatch) -> Void
     private var stream: FSEventStreamRef?
 
-    init?(
+    convenience init?(
         folders: [String],
         excludedPaths: [String] = [],
         onChange: @escaping @Sendable ([String]) -> Void
     ) {
-        let valid = folders.filter {
-            var isDir: ObjCBool = false
-            return FileManager.default.fileExists(atPath: $0, isDirectory: &isDir) && isDir.boolValue
+        self.init(folders: folders, excludedPaths: excludedPaths) { batch in
+            onChange(batch.paths)
         }
+    }
+
+    init?(
+        folders: [String],
+        excludedPaths: [String] = [],
+        onBatch: @escaping @Sendable (FolderChangeBatch) -> Void
+    ) {
+        let valid = folders
+            .map { raw -> String in
+                let std = (raw as NSString).standardizingPath
+                return std.count > 1 && std.hasSuffix("/") ? String(std.dropLast()) : std
+            }
+            .filter {
+                var isDir: ObjCBool = false
+                return FileManager.default.fileExists(atPath: $0, isDirectory: &isDir) && isDir.boolValue
+            }
         guard !valid.isEmpty else { return nil }
+        self.watchedRoots = valid
         self.excludedPaths = excludedPaths.compactMap { raw in
             let std = (raw as NSString).standardizingPath
             guard !std.isEmpty else { return nil }
             return std.count > 1 && std.hasSuffix("/") ? String(std.dropLast()) : std
         }
-        self.onChange = onChange
+        self.onBatch = onBatch
 
         var context = FSEventStreamContext(
             version: 0,
@@ -75,33 +91,69 @@ final class FSEventFolderWatcher: @unchecked Sendable {
                 | kFSEventStreamEventFlagMount
                 | kFSEventStreamEventFlagUnmount
         )
+        let structuralDirMask = FSEventStreamEventFlags(
+            kFSEventStreamEventFlagItemCreated
+                | kFSEventStreamEventFlagItemRemoved
+                | kFSEventStreamEventFlagItemRenamed
+        )
         let dirFlag = FSEventStreamEventFlags(kFSEventStreamEventFlagItemIsDir)
         let fileFlag = FSEventStreamEventFlags(kFSEventStreamEventFlagItemIsFile)
 
         var relevant: [String] = []
         relevant.reserveCapacity(paths.count)
+        var requiresFullScan = false
 
         for (index, rawPath) in paths.enumerated() {
-            if Self.ignoredFragments.contains(where: { rawPath.contains($0) }) { continue }
             let stdPath = (rawPath as NSString).standardizingPath
-            if excludedPaths.contains(where: { stdPath == $0 || stdPath.hasPrefix($0 + "/") }) { continue }
+            if ImageFolderCrawler.shouldIgnoreEventPath(
+                stdPath,
+                watchedRoots: watchedRoots,
+                excludedPaths: excludedPaths
+            ) {
+                continue
+            }
 
             let eventFlag = index < flags.count ? flags[index] : 0
             let needsFullScan = (eventFlag & scanAllMask) != 0
             let isDirEvent = (eventFlag & dirFlag) != 0
             let isFileEvent = (eventFlag & fileFlag) != 0
 
-            if !needsFullScan && isFileEvent && !isDirEvent {
+            if needsFullScan {
+                requiresFullScan = true
+                relevant.append(stdPath)
+                continue
+            }
+
+            if isDirEvent && !isFileEvent {
+                // Ignore non-structural directory metadata touches (e.g. Finder/.DS_Store/xattr mtime updates).
+                if (eventFlag & structuralDirMask) != 0 {
+                    requiresFullScan = true
+                    relevant.append(stdPath)
+                }
+                continue
+            }
+
+            if isFileEvent {
                 let url = URL(fileURLWithPath: stdPath)
                 if url.lastPathComponent.hasPrefix(".") || !VisionTextExtractor.isSupportedDocument(url) {
                     continue
                 }
+                relevant.append(stdPath)
+                continue
             }
-            relevant.append(stdPath)
+
+            // Fallback when neither file nor dir flag is set: inspect extension or escalate.
+            let url = URL(fileURLWithPath: stdPath)
+            if VisionTextExtractor.isSupportedDocument(url) {
+                relevant.append(stdPath)
+            } else if (eventFlag & structuralDirMask) != 0 {
+                requiresFullScan = true
+                relevant.append(stdPath)
+            }
         }
 
-        if !relevant.isEmpty {
-            onChange(relevant)
+        if !relevant.isEmpty || requiresFullScan {
+            onBatch(FolderChangeBatch(paths: relevant, requiresFullScan: requiresFullScan))
         }
     }
 }

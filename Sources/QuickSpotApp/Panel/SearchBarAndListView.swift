@@ -38,7 +38,7 @@ struct SearchBarAndListView: View {
                 splitResultsPane
                 Divider().opacity(0.35)
                 shortcutsFooter
-            } else if hasNonEmptyQuery {
+            } else if hasNonEmptyQuery || viewModel.similarAnchor != nil {
                 Divider().opacity(0.45)
                 emptyOrSearchingStatusRow
             }
@@ -78,19 +78,32 @@ struct SearchBarAndListView: View {
 
     private var searchHeader: some View {
         HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
+            Image(systemName: viewModel.similarAnchor != nil ? "sparkles" : "magnifyingglass")
                 .font(.system(size: 19, weight: .medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(viewModel.similarAnchor != nil ? Color.purple : .secondary)
                 .frame(width: 24)
+
+            if let anchor = viewModel.similarAnchor {
+                SimilarAnchorChipView(
+                    anchor: anchor,
+                    clipboardImage: viewModel.clipboardAnchorImage,
+                    scope: viewModel.similarScope,
+                    showScopeToggle: viewModel.canSwitchSimilarScope,
+                    onScopeChange: { viewModel.setSimilarScope($0) },
+                    onDismiss: { viewModel.exitSimilarMode() }
+                )
+            }
 
             FocusTextField(
                 text: $viewModel.query,
-                placeholder: L10n.tr("panel.search_placeholder"),
+                placeholder: viewModel.similarAnchor != nil
+                    ? L10n.tr("panel.similar_refine_placeholder")
+                    : L10n.tr("panel.search_placeholder"),
                 focusRequest: viewModel.focusRequest
             )
             .frame(height: 28)
 
-            if let badge = viewModel.activeFilterBadge {
+            if let badge = viewModel.activeFilterBadge, viewModel.similarAnchor == nil {
                 Text(badge)
                     .font(.system(size: 10.5, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
@@ -104,7 +117,11 @@ struct SearchBarAndListView: View {
                 ProgressView()
                     .controlSize(.mini)
                     .scaleEffect(0.85)
-                    .help(L10n.tr("panel.searching_files"))
+                    .help(
+                        viewModel.similarAnchor != nil
+                            ? L10n.tr("panel.similar.searching")
+                            : L10n.tr("panel.searching_files")
+                    )
             }
 
             if let toast = inlineToastMessage {
@@ -119,7 +136,7 @@ struct SearchBarAndListView: View {
                     .fixedSize()
             }
 
-            if !viewModel.query.isEmpty {
+            if !viewModel.query.isEmpty || viewModel.similarAnchor != nil {
                 Button { viewModel.clearQuery() } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 15))
@@ -129,7 +146,11 @@ struct SearchBarAndListView: View {
                 .help(L10n.tr("panel.clear_search_help"))
             }
 
-            PanelHeaderControls(progress: viewModel.indexProgress, onOpenSettings: onOpenSettings)
+            PanelHeaderControls(
+                progress: viewModel.indexProgress,
+                semanticProgress: viewModel.semanticProgress,
+                onOpenSettings: onOpenSettings
+            )
         }
         .padding(.horizontal, 16)
         .frame(height: 56)
@@ -165,13 +186,17 @@ struct SearchBarAndListView: View {
             if viewModel.isSearchingFiles {
                 ProgressView()
                     .controlSize(.small)
-                Text(L10n.tr("panel.searching_files"))
+                Text(
+                    viewModel.similarAnchor != nil
+                        ? L10n.tr("panel.similar.searching")
+                        : L10n.tr("panel.searching_files")
+                )
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.secondary)
             } else {
-                Image(systemName: "magnifyingglass")
+                Image(systemName: viewModel.similarAnchor != nil ? "sparkles" : "magnifyingglass")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(viewModel.similarAnchor != nil ? Color.purple.opacity(0.75) : .secondary)
                 Text(viewModel.emptyResultMessage)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.secondary)
@@ -191,11 +216,22 @@ struct SearchBarAndListView: View {
             Divider().opacity(0.45)
             Group {
                 if let selected = viewModel.selectedItem {
+                    let canRemoveBG = selected.previewURL.map { $0.isFileURL && VisionTextExtractor.isSupportedImage($0) } ?? false
                     PreviewPaneView(
                         item: selected,
                         fullOCRText: viewModel.selectedFullOCRText,
+                        smartEntities: viewModel.selectedSmartEntities,
+                        canFindSimilar: viewModel.selectedSimilarityKind != nil,
+                        canRemoveBackground: canRemoveBG,
+                        isRemovingBackground: viewModel.isRemovingBackground,
                         isPendingConfirmation: viewModel.pendingConfirmationID == selected.id,
                         onOpen: { onExecuteIndex(viewModel.selectedIndex) },
+                        onFindSimilar: { viewModel.findSimilarForSelected() },
+                        onRemoveBackground: { viewModel.removeBackgroundAndCopySelected() },
+                        onActivateEntity: { entity in
+                            if viewModel.activateSmartEntity(entity) { onHideWithoutReturnFocus() }
+                        },
+                        onCopyEntity: { viewModel.copySmartEntity($0) },
                         onEnterFolder: { _ = viewModel.autocompleteWithTab() },
                         onReveal: onReveal,
                         onQuickLook: onQuickLook,
@@ -212,7 +248,7 @@ struct SearchBarAndListView: View {
     }
 
     private var resultsList: some View {
-        let isEmptyQuery = !hasNonEmptyQuery
+        let isEmptyQuery = !hasNonEmptyQuery && viewModel.similarAnchor == nil
         let labels = viewModel.items.map { sectionLabel(for: $0, isEmptyQuery: isEmptyQuery) }
         let showHeaders = shouldDisplaySectionHeaders(for: labels)
 
@@ -273,11 +309,22 @@ struct SearchBarAndListView: View {
 
     private func rowOverlay(index: Int, item: SearchItem) -> some View {
         let fileURL = (item.previewURL?.isFileURL == true) ? item.previewURL : nil
+        let isSupportedImage = fileURL.map { VisionTextExtractor.isSupportedImage($0) } ?? false
         return RowInteractionOverlay(
             fileURL: fileURL,
             openTitle: item.primaryActionTitle,
+            canFindSimilar: { viewModel.similarityKind(for: item) != nil },
+            canRemoveBackground: isSupportedImage,
             onSelect: { viewModel.select(at: index) },
             onOpen: { onExecuteIndex(index) },
+            onFindSimilar: {
+                viewModel.select(at: index)
+                viewModel.findSimilarForSelected()
+            },
+            onRemoveBackground: {
+                viewModel.select(at: index)
+                viewModel.removeBackgroundAndCopySelected()
+            },
             onReveal: { viewModel.select(at: index); onReveal() },
             onQuickLook: { viewModel.select(at: index); onQuickLook() },
             onCopy: { viewModel.select(at: index); viewModel.copySelected() },

@@ -6,8 +6,16 @@ import SwiftUI
 struct PreviewPaneView: View {
     let item: SearchItem
     let fullOCRText: String?
+    let smartEntities: [DetectedSmartEntity]
+    let canFindSimilar: Bool
+    let canRemoveBackground: Bool
+    let isRemovingBackground: Bool
     let isPendingConfirmation: Bool
     let onOpen: () -> Void
+    let onFindSimilar: () -> Void
+    let onRemoveBackground: () -> Void
+    let onActivateEntity: (DetectedSmartEntity) -> Void
+    let onCopyEntity: (DetectedSmartEntity) -> Void
     let onEnterFolder: () -> Void
     let onReveal: () -> Void
     let onQuickLook: () -> Void
@@ -23,11 +31,47 @@ struct PreviewPaneView: View {
                 .frame(height: mediaHeight)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-                    .textSelection(.enabled)
+                HStack(alignment: .top, spacing: 6) {
+                    Text(item.title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+
+                    Spacer(minLength: 4)
+
+                    if canRemoveBackground {
+                        Button(action: onRemoveBackground) {
+                            Group {
+                                if isRemovingBackground {
+                                    ProgressView()
+                                        .controlSize(.mini)
+                                        .scaleEffect(0.75)
+                                } else {
+                                    Image(systemName: "person.and.background.dotted")
+                                        .font(.system(size: 11, weight: .medium))
+                                }
+                            }
+                            .frame(width: 16, height: 14)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isRemovingBackground)
+                        .help(L10n.tr("preview.action.remove_bg_help"))
+                    }
+
+                    if canFindSimilar {
+                        Button(action: onFindSimilar) {
+                            Label(L10n.tr("preview.action.find_similar"), systemImage: "sparkles")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .tint(.purple)
+                        .fixedSize()
+                        .help(L10n.tr("preview.action.find_similar_help"))
+                    }
+                }
 
                 if let url = item.previewURL, url.isFileURL {
                     Button(action: onReveal) {
@@ -63,6 +107,14 @@ struct PreviewPaneView: View {
                 matchedSnippetBox(snippet)
             }
 
+            if !smartEntities.isEmpty {
+                PreviewIntelligenceStripView(
+                    entities: smartEntities,
+                    onActivate: onActivateEntity,
+                    onCopy: onCopyEntity
+                )
+            }
+
             Spacer(minLength: 6)
 
             actionButtonsRow
@@ -84,12 +136,23 @@ struct PreviewPaneView: View {
     }
 
     private var mediaHeight: CGFloat {
+        if hasMatchedSnippet && !smartEntities.isEmpty { return 134 }
         if hasMatchedSnippet { return 162 }
+        if !smartEntities.isEmpty { return 174 }
         if item.requiresConfirmation { return 178 }
         return 212
     }
 
     private var snippetHeaderTitle: String {
+        if item.id.hasPrefix("sim:") || item.id.hasPrefix("simdoc:") {
+            return L10n.tr("preview.snippet.similar")
+        }
+        if item.matchSource == .semanticVisual {
+            return L10n.tr("preview.snippet.visual")
+        }
+        if item.matchSource == .semanticText {
+            return L10n.tr("preview.snippet.semantic_text")
+        }
         if item.previewURL?.pathExtension.lowercased() == "pdf" {
             return L10n.tr("preview.snippet.pdf")
         }
@@ -100,10 +163,17 @@ struct PreviewPaneView: View {
     }
 
     private var snippetIconName: String {
+        if item.matchSource == .semanticVisual || item.matchSource == .semanticText {
+            return "sparkles"
+        }
         if item.matchSource == .fileContent || item.previewURL?.pathExtension.lowercased() == "pdf" {
             return "doc.text.magnifyingglass"
         }
         return "doc.text.viewfinder"
+    }
+
+    private var snippetAccentColor: Color {
+        (item.matchSource == .semanticVisual || item.matchSource == .semanticText) ? .purple : .orange
     }
 
     private var cautionPill: some View {
@@ -132,7 +202,7 @@ struct PreviewPaneView: View {
         HStack(alignment: .top, spacing: 6) {
             Image(systemName: snippetIconName)
                 .font(.system(size: 11))
-                .foregroundStyle(.orange)
+                .foregroundStyle(snippetAccentColor)
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
                 Text(snippetHeaderTitle)
@@ -147,7 +217,7 @@ struct PreviewPaneView: View {
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(snippetAccentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private var actionButtonsRow: some View {

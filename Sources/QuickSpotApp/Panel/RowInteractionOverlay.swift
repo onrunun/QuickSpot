@@ -6,8 +6,12 @@ import SwiftUI
 struct RowInteractionOverlay: NSViewRepresentable {
     let fileURL: URL?
     let openTitle: String
+    let canFindSimilar: () -> Bool
+    let canRemoveBackground: Bool
     let onSelect: () -> Void
     let onOpen: () -> Void
+    let onFindSimilar: () -> Void
+    let onRemoveBackground: () -> Void
     let onReveal: () -> Void
     let onQuickLook: () -> Void
     let onCopy: () -> Void
@@ -20,8 +24,12 @@ struct RowInteractionOverlay: NSViewRepresentable {
     func updateNSView(_ view: RowInteractionNSView, context: Context) {
         view.fileURL = fileURL
         view.openTitle = openTitle
+        view.canFindSimilar = canFindSimilar
+        view.canRemoveBackground = canRemoveBackground
         view.onSelect = onSelect
         view.onOpen = onOpen
+        view.onFindSimilar = onFindSimilar
+        view.onRemoveBackground = onRemoveBackground
         view.onReveal = onReveal
         view.onQuickLook = onQuickLook
         view.onCopy = onCopy
@@ -32,8 +40,12 @@ struct RowInteractionOverlay: NSViewRepresentable {
 final class RowInteractionNSView: NSView, NSDraggingSource {
     var fileURL: URL?
     var openTitle = L10n.tr("context.open")
+    var canFindSimilar: () -> Bool = { false }
+    var canRemoveBackground = false
     var onSelect: () -> Void = {}
     var onOpen: () -> Void = {}
+    var onFindSimilar: () -> Void = {}
+    var onRemoveBackground: () -> Void = {}
     var onReveal: () -> Void = {}
     var onQuickLook: () -> Void = {}
     var onCopy: () -> Void = {}
@@ -76,6 +88,12 @@ final class RowInteractionNSView: NSView, NSDraggingSource {
         let menu = NSMenu()
         menu.addItem(ClosureMenuItem(title: openTitle, action: onOpen))
         if let url = fileURL, url.isFileURL {
+            if canFindSimilar() {
+                menu.addItem(ClosureMenuItem(title: L10n.tr("context.find_similar"), action: onFindSimilar))
+            }
+            if canRemoveBackground {
+                menu.addItem(ClosureMenuItem(title: L10n.tr("context.remove_bg"), action: onRemoveBackground))
+            }
             menu.addItem(ClosureMenuItem(title: L10n.tr("context.reveal_in_finder"), action: onReveal))
             menu.addItem(ClosureMenuItem(title: L10n.tr("context.quick_look"), action: onQuickLook))
             menu.addItem(.separator())

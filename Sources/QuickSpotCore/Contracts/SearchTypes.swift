@@ -46,6 +46,8 @@ public enum MatchSource: String, Equatable, Sendable {
     case recent
     case path
     case ocrContent
+    case semanticVisual
+    case semanticText
     case fileContent
     case quickAction
     case clipboard

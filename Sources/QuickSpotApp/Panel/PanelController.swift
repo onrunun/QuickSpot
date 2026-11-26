@@ -12,6 +12,7 @@ final class PanelController {
     let viewModel: PanelViewModel
     var onOpenSettings: (() -> Void)?
     var isSettingsVisible: (() -> Bool)?
+    var onVisibilityChanged: ((Bool) -> Void)?
     var window: FloatingPanelWindow?
     private var hostingView: NSHostingView<SearchBarAndListView>?
     var keyMonitor: Any?
@@ -35,6 +36,7 @@ final class PanelController {
         Publishers.MergeMany(
             viewModel.$items.map { _ in () }.eraseToAnyPublisher(),
             viewModel.$query.map { _ in () }.eraseToAnyPublisher(),
+            viewModel.$similarAnchor.map { _ in () }.eraseToAnyPublisher(),
             viewModel.$isSearchingFiles.map { _ in () }.eraseToAnyPublisher(),
             viewModel.$toastMessage.map { _ in () }.eraseToAnyPublisher()
         )
@@ -64,6 +66,7 @@ final class PanelController {
         NSApp.activate(ignoringOtherApps: true)
         win.makeKeyAndOrderFront(nil)
         installKeyMonitor()
+        onVisibilityChanged?(true)
     }
 
     func hide(returnFocus: Bool = false) {
@@ -73,6 +76,7 @@ final class PanelController {
         removeKeyMonitor()
         if wasVisible {
             viewModel.markHidden()
+            onVisibilityChanged?(false)
         }
         if returnFocus, !(isSettingsVisible?() ?? false) {
             window?.canHide = false

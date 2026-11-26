@@ -48,14 +48,23 @@ extension PanelController {
         case 40 where mods == .command: // Cmd+K Secondary Action Palette
             viewModel.toggleActionPalette()
             return true
+        case 1 where mods == [.command, .shift]: // Shift+Cmd+S Find Similar
+            viewModel.findSimilarForSelected()
+            return true
+        case 34 where mods == [.command, .shift]: // Shift+Cmd+I Find Similar to Clipboard Image
+            viewModel.findSimilarFromClipboardImage()
+            return true
         case 9 where mods == [.command, .shift]: // Shift+Cmd+V Clipboard History
             viewModel.setQueryForAutocomplete("cb: ")
             return true
         case 48 where mods.isEmpty: // Tab path drill-down / completion
             _ = viewModel.autocompleteWithTab()
             return true
-        case 51 where mods == .command: // Cmd+Delete clear query
-            viewModel.clearQuery()
+        case 51 where mods == .command: // Cmd+Delete clear query and similar mode
+            viewModel.clearQueryAndSimilar()
+            return true
+        case 51 where mods.isEmpty && viewModel.query.isEmpty && viewModel.similarAnchor != nil: // Delete chip
+            viewModel.exitSimilarMode()
             return true
         case 126: // Up
             viewModel.moveSelection(by: -1)
@@ -66,7 +75,7 @@ extension PanelController {
         case 36, 76: // Return / Keypad Enter
             if viewModel.executeSelected(revealInFinder: mods.contains(.command)) { hide() }
             return true
-        case 53: // Two-step Escape
+        case 53: // Multi-step Escape
             if isQuickLookVisible {
                 QLPreviewPanel.shared().orderOut(nil)
                 return true
@@ -77,6 +86,10 @@ extension PanelController {
             }
             if !viewModel.query.isEmpty {
                 viewModel.clearQuery()
+                return true
+            }
+            if viewModel.similarAnchor != nil {
+                viewModel.exitSimilarMode()
                 return true
             }
             if viewModel.cancelOrDismiss() {

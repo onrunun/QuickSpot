@@ -25,10 +25,19 @@ final class PanelViewModel: ObservableObject {
     @Published var toastMessage: String?
     @Published var toastStyle: ToastStyle = .success
     @Published var indexProgress: IndexProgress?
+    @Published var semanticProgress: SemanticIndexProgress?
     @Published private(set) var focusRequest: FocusRequest = .selectAll()
     @Published var hasNavigated: Bool = false
     @Published var isSearchingFiles: Bool = false
     @Published var activeFilterBadge: String?
+    @Published var similarAnchor: SimilarityAnchor?
+    @Published var similarScope: SimilaritySearchScope = .images
+    @Published var canSwitchSimilarScope: Bool = false
+    @Published var clipboardAnchorImage: NSImage?
+    @Published var similarStatusMessage: String?
+    @Published var selectedSimilarityKind: SimilarityTargetKind?
+    @Published var selectedSmartEntities: [DetectedSmartEntity] = []
+    @Published var isRemovingBackground: Bool = false
     @Published var pendingConfirmationID: String?
     @Published var selectedFullOCRText: String?
     @Published var isActionPaletteVisible: Bool = false
@@ -38,16 +47,22 @@ final class PanelViewModel: ObservableObject {
     @Published private(set) var languageToken: UUID = UUID()
 
     var onOpenSettings: (() -> Void)?
+    var onOpenDuplicateFinder: (() -> Void)?
     var onRequestDelayedHide: ((TimeInterval) -> Void)?
     var onCancelPendingHide: (() -> Void)?
 
     var lastHiddenAt: Date?
     var selectedItemID: String?
     var searchGeneration: UInt64 = 0
+    var previousQueryBeforeSimilar: String?
+    var cachedClipboardVector: [Float]?
+    var isUpdatingQueryInternally: Bool = false
 
     var toastTask: Task<Void, Never>?
     var ocrSearchTask: Task<Void, Never>?
+    var semanticSearchTask: Task<Void, Never>?
     var ocrFullTextTask: Task<Void, Never>?
+    var backgroundRemovalTask: Task<Void, Never>?
     var emptyRefreshTask: Task<Void, Never>?
 
     let appScanner: AppScanner
@@ -55,11 +70,13 @@ final class PanelViewModel: ObservableObject {
     let recentFiles: RecentFilesProvider
     let spotlightSearch: SpotlightFileSearch
     let ocrIndexer: ImageOCRIndexer?
+    let semanticIndexer: SemanticImageIndexer?
     let clipboardHistory: ClipboardHistoryStore
 
     var appResults: [SearchItem] = []
     var recentResults: [SearchItem] = []
     var ocrResults: [SearchItem] = []
+    var semanticResults: [SearchItem] = []
     var fileResults: [SearchItem] = []
 
     init(
@@ -68,6 +85,7 @@ final class PanelViewModel: ObservableObject {
         recentFiles: RecentFilesProvider,
         spotlightSearch: SpotlightFileSearch,
         ocrIndexer: ImageOCRIndexer? = nil,
+        semanticIndexer: SemanticImageIndexer? = nil,
         clipboardHistory: ClipboardHistoryStore = ClipboardHistoryStore()
     ) {
         self.appScanner = appScanner
@@ -75,6 +93,7 @@ final class PanelViewModel: ObservableObject {
         self.recentFiles = recentFiles
         self.spotlightSearch = spotlightSearch
         self.ocrIndexer = ocrIndexer
+        self.semanticIndexer = semanticIndexer
         self.clipboardHistory = clipboardHistory
     }
 
@@ -94,7 +113,15 @@ final class PanelViewModel: ObservableObject {
         recentFiles.refreshAsync()
 
         let isStale = lastHiddenAt.map { Date().timeIntervalSince($0) > Self.staleQueryResetInterval } ?? false
-        if isStale || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if isStale {
+            similarAnchor = nil
+            similarStatusMessage = nil
+            previousQueryBeforeSimilar = nil
+            canSwitchSimilarScope = false
+            clipboardAnchorImage = nil
+            cachedClipboardVector = nil
+        }
+        if isStale || (similarAnchor == nil && query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
             if !query.isEmpty {
                 query = ""
             } else {
@@ -112,6 +139,8 @@ final class PanelViewModel: ObservableObject {
         spotlightSearch.cancel()
         ocrSearchTask?.cancel()
         ocrSearchTask = nil
+        semanticSearchTask?.cancel()
+        semanticSearchTask = nil
         emptyRefreshTask?.cancel()
         emptyRefreshTask = nil
         isSearchingFiles = false
@@ -123,7 +152,15 @@ final class PanelViewModel: ObservableObject {
         onCancelPendingHide?()
         pendingConfirmationID = nil
         if toastStyle == .warning { clearToast() }
-        query = ""
+        if !query.isEmpty {
+            query = ""
+            focusRequest = .caretAtEnd()
+        } else if similarAnchor != nil {
+            exitSimilarMode()
+        }
+    }
+
+    func requestSearchFocusCaretAtEnd() {
         focusRequest = .caretAtEnd()
     }
 
@@ -139,6 +176,11 @@ final class PanelViewModel: ObservableObject {
 
     func setQueryForAutocomplete(_ path: String) {
         onCancelPendingHide?()
+        if similarAnchor != nil {
+            similarAnchor = nil
+            similarStatusMessage = nil
+            previousQueryBeforeSimilar = nil
+        }
         if query != path {
             query = path
         }
@@ -203,6 +245,18 @@ final class PanelViewModel: ObservableObject {
             return true
         }
 
+        if case .systemCommand(let cmdID) = item.action {
+            if cmdID == "duplicates" {
+                frecency.record(id: item.id, query: queryContext)
+                onOpenDuplicateFinder?()
+                return true
+            }
+            if cmdID == "clipboard_similar" {
+                findSimilarFromClipboardImage()
+                return false
+            }
+        }
+
         let outcome = QuickActionRouter.executeWithFeedback(
             item.action,
             frecency: frecency,
@@ -229,6 +283,8 @@ final class PanelViewModel: ObservableObject {
         spotlightSearch.cancel()
         ocrSearchTask?.cancel()
         ocrSearchTask = nil
+        semanticSearchTask?.cancel()
+        semanticSearchTask = nil
         emptyRefreshTask?.cancel()
         emptyRefreshTask = nil
         isSearchingFiles = false
@@ -265,9 +321,12 @@ final class PanelViewModel: ObservableObject {
                 pendingConfirmationID = nil
                 if toastStyle == .warning { clearToast() }
             }
+            selectedSimilarityKind = similarityKind(for: current)
             loadSelectedFullOCRText(for: current)
         } else if current == nil {
             selectedItemID = nil
+            selectedSimilarityKind = nil
+            selectedSmartEntities = []
             ocrFullTextTask?.cancel()
             ocrFullTextTask = nil
             selectedFullOCRText = nil
@@ -282,19 +341,28 @@ final class PanelViewModel: ObservableObject {
         ocrFullTextTask?.cancel()
         ocrFullTextTask = nil
         selectedFullOCRText = nil
+        selectedSmartEntities = []
 
         guard let item,
               item.category == .file,
               let url = item.previewURL,
-              url.isFileURL,
-              let ocrIndexer else { return }
+              url.isFileURL else { return }
 
         let targetID = item.id
         let path = url.standardizedFileURL.path
+        let ocrRef = ocrIndexer
+        let isImageOrPDF = VisionTextExtractor.isSupportedImage(url) || url.pathExtension.lowercased() == "pdf"
         ocrFullTextTask = Task { [weak self] in
-            let text = await ocrIndexer.fullTextAsync(forPath: path)
+            let text = await ocrRef?.fullTextAsync(forPath: path)
             guard !Task.isCancelled, let self, self.selectedItemID == targetID else { return }
-            self.selectedFullOCRText = text
+            self.selectedFullOCRText = (text?.isEmpty == false) ? text : nil
+
+            guard isImageOrPDF else { return }
+            let entities = await Task.detached(priority: .utility) {
+                ImageIntelligenceService.analyzePreview(url: url, ocrText: text)
+            }.value
+            guard !Task.isCancelled, self.selectedItemID == targetID else { return }
+            self.selectedSmartEntities = entities
         }
     }
 }

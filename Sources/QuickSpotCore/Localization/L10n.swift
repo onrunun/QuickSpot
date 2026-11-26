@@ -232,7 +232,7 @@ public enum L10n {
         return dict
     }
 
-    /// Prioritized Apple Vision OCR language list starting with the user's active & system languages.
+    /// Prioritized Apple Vision OCR language list scoped to the user's active & system languages plus English fallback.
     public static func preferredVisionLanguages() -> [String] {
         var ordered: [String] = []
         var seen = Set<String>()
@@ -248,9 +248,6 @@ public enum L10n {
             }
         }
         append("en-US")
-        for lang in AppLanguage.concreteLanguages {
-            append(lang.visionLanguageCode)
-        }
         return ordered
     }
 

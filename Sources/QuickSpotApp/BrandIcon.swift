@@ -15,10 +15,25 @@ enum BrandIcon {
     ]
 
     /// Resolution-independent monochrome template image for `NSStatusItem` (adapts to Light/Dark menu bars).
-    static func menuBarImage() -> NSImage {
+    static func menuBarImage(isIndexing: Bool = false) -> NSImage {
         let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
-            drawMenuBarGlyph(in: ctx, size: min(rect.width, rect.height))
+            let size = min(rect.width, rect.height)
+            drawMenuBarGlyph(in: ctx, size: size)
+            if isIndexing {
+                let s = size / 18.0
+                let dotRadius = 1.8 * s
+                let dotRect = CGRect(
+                    x: 15.6 * s - dotRadius,
+                    y: 15.4 * s - dotRadius,
+                    width: dotRadius * 2,
+                    height: dotRadius * 2
+                )
+                ctx.saveGState()
+                NSColor.black.setFill()
+                ctx.fillEllipse(in: dotRect)
+                ctx.restoreGState()
+            }
             return true
         }
         image.isTemplate = true

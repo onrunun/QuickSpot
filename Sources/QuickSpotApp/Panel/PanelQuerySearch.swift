@@ -4,6 +4,9 @@ import QuickSpotCore
 /// Isolates QueryParser-driven routing across empty home state, paths, filter prefixes, OCR, and Spotlight.
 extension PanelViewModel {
     var emptyResultMessage: String {
+        if similarAnchor != nil {
+            return similarStatusMessage ?? L10n.tr("panel.empty.no_results")
+        }
         switch QueryParser.parse(query).mode {
         case .terminal(let cmd) where cmd.isEmpty:
             return L10n.tr("panel.empty.terminal")
@@ -17,7 +20,24 @@ extension PanelViewModel {
     }
 
     func buildEmptyStateItems() -> [SearchItem] {
-        appScanner.topFrequentApps(limit: 5) + recentFiles.recentItems(limit: 6)
+        var result: [SearchItem] = []
+        if let semanticIndexer,
+           semanticIndexer.canSearchClipboardImage(),
+           ClipboardHistoryStore.hasSafePasteboardImage() {
+            result.append(SearchItem(
+                id: "sys:clipboard_similar",
+                title: L10n.tr("sys.clipboard_similar.title"),
+                subtitle: L10n.tr("sys.clipboard_similar.subtitle"),
+                category: .quickAction,
+                sfSymbol: "sparkles.rectangle.stack",
+                score: 980,
+                action: .systemCommand("clipboard_similar"),
+                matchSource: .quickAction
+            ))
+        }
+        result.append(contentsOf: appScanner.topFrequentApps(limit: 5))
+        result.append(contentsOf: recentFiles.recentItems(limit: 6))
+        return result
     }
 
     func scheduleEmptyStateRefresh() {
@@ -35,6 +55,12 @@ extension PanelViewModel {
     }
 
     func queryDidChange() {
+        if isUpdatingQueryInternally { return }
+        if similarAnchor != nil {
+            dispatchSimilarSearch(refinement: query)
+            return
+        }
+
         searchGeneration &+= 1
         let generation = searchGeneration
 
@@ -43,6 +69,8 @@ extension PanelViewModel {
         spotlightSearch.cancel()
         ocrSearchTask?.cancel()
         ocrSearchTask = nil
+        semanticSearchTask?.cancel()
+        semanticSearchTask = nil
         emptyRefreshTask?.cancel()
         emptyRefreshTask = nil
 
@@ -54,6 +82,7 @@ extension PanelViewModel {
         appResults = []
         recentResults = []
         ocrResults = []
+        semanticResults = []
         fileResults = []
         isSearchingFiles = false
 
@@ -97,38 +126,88 @@ extension PanelViewModel {
         }
 
         if filter == .clipboard {
-            applyItems(clipboardHistory.search(query: term, limit: 24), preserveSelection: false)
+            var clipItems = clipboardHistory.search(query: term, limit: 24)
+            if term.isEmpty,
+               let semanticIndexer,
+               semanticIndexer.canSearchClipboardImage(),
+               ClipboardHistoryStore.hasSafePasteboardImage() {
+                let reverseItem = SearchItem(
+                    id: "sys:clipboard_similar",
+                    title: L10n.tr("sys.clipboard_similar.title"),
+                    subtitle: L10n.tr("sys.clipboard_similar.subtitle"),
+                    category: .quickAction,
+                    sfSymbol: "sparkles.rectangle.stack",
+                    score: 990,
+                    action: .systemCommand("clipboard_similar"),
+                    matchSource: .quickAction
+                )
+                clipItems.insert(reverseItem, at: 0)
+            }
+            applyItems(clipItems, preserveSelection: false)
             return
         }
 
-        guard term.count >= 2 else {
+        let expr = SemanticQueryExpression.parse(term)
+        let positiveTerm = expr.positiveQuery
+        guard positiveTerm.count >= 2 else {
             applyItems([], preserveSelection: false)
             return
         }
 
         if filter != .contentOnly {
-            recentResults = recentFiles.searchInstant(query: term, filter: filter, limit: 10)
+            recentResults = recentFiles.searchInstant(query: positiveTerm, filter: filter, limit: 10)
         }
         rebuildMergedItems(term: term, filter: filter, includeQuickActions: false, preserveSelection: false)
 
         if filter == .imagesOnly || filter == .pdfOnly || filter == .contentOnly {
-            dispatchOCR(term: term, filter: filter, includeQuickActions: false, generation: generation)
+            dispatchOCR(term: positiveTerm, filter: filter, includeQuickActions: false, generation: generation)
+        }
+        if filter == .imagesOnly || filter == .pdfOnly || filter == .filesOnly || filter == .contentOnly {
+            dispatchSemantic(term: term, filter: filter, includeQuickActions: false, generation: generation)
         }
 
         isSearchingFiles = true
-        dispatchSpotlight(term: term, filter: filter, includeQuickActions: false, generation: generation)
+        dispatchSpotlight(term: positiveTerm, filter: filter, includeQuickActions: false, generation: generation)
     }
 
     private func handleGeneralQuery(term: String, generation: UInt64) {
-        appResults = appScanner.search(query: term, limit: 10)
-        recentResults = recentFiles.searchInstant(query: term, filter: nil, limit: 10)
+        let expr = SemanticQueryExpression.parse(term)
+        let positiveTerm = expr.positiveQuery
+
+        appResults = appScanner.search(query: positiveTerm, limit: 10)
+        recentResults = recentFiles.searchInstant(query: positiveTerm, filter: nil, limit: 10)
         rebuildMergedItems(term: term, filter: nil, includeQuickActions: true, preserveSelection: false)
 
-        guard term.count >= 2 else { return }
+        guard positiveTerm.count >= 2 else { return }
 
-        dispatchOCR(term: term, filter: nil, includeQuickActions: true, generation: generation)
+        dispatchOCR(term: positiveTerm, filter: nil, includeQuickActions: true, generation: generation)
+        dispatchSemantic(term: term, filter: nil, includeQuickActions: true, generation: generation)
         isSearchingFiles = true
-        dispatchSpotlight(term: term, filter: nil, includeQuickActions: true, generation: generation)
+        dispatchSpotlight(term: positiveTerm, filter: nil, includeQuickActions: true, generation: generation)
+    }
+
+    private func dispatchSemantic(
+        term: String,
+        filter: SearchKindFilter?,
+        includeQuickActions: Bool,
+        generation: UInt64
+    ) {
+        guard let semanticIndexer else { return }
+        semanticSearchTask?.cancel()
+        semanticSearchTask = Task { [weak self] in
+            // Slight debounce so rapid typing does not saturate the local Metal queue on every keystroke.
+            try? await Task.sleep(nanoseconds: 75_000_000)
+            guard !Task.isCancelled else { return }
+            let hits = await semanticIndexer.searchAsync(query: term, filter: filter, limit: 10)
+            guard !Task.isCancelled, let self, self.searchGeneration == generation else { return }
+            self.semanticResults = hits
+            self.rebuildMergedItems(
+                term: term,
+                filter: filter,
+                includeQuickActions: includeQuickActions,
+                preserveSelection: true
+            )
+        }
     }
 
     private func dispatchOCR(
@@ -179,12 +258,27 @@ extension PanelViewModel {
         includeQuickActions: Bool,
         preserveSelection: Bool
     ) {
+        let expr = SemanticQueryExpression.parse(term)
+        let positiveTerm = expr.positiveQuery
+        let filterNegatives: ([SearchItem]) -> [SearchItem] = { list in
+            guard expr.hasNegatives else { return list }
+            return list.filter { item in
+                !expr.matchesNegativeTerm(in: item.title)
+                    && !(item.matchedSnippet.map { expr.matchesNegativeTerm(in: $0) } ?? false)
+            }
+        }
+
+        let filteredRecent = filterNegatives(recentResults)
+        let filteredOCR = filterNegatives(ocrResults)
+        let filteredFiles = filterNegatives(fileResults)
+        let combinedVisualAndOCR = filteredOCR + semanticResults
+
         let quick: [SearchItem]
         if includeQuickActions {
             let mergedFiles = ResultRanker.mergeDeduplicatingFiles(
-                recent: recentResults,
-                ocr: ocrResults,
-                files: fileResults
+                recent: filteredRecent,
+                ocr: combinedVisualAndOCR,
+                files: filteredFiles
             )
             quick = QuickActionRouter.generate(
                 for: query,
@@ -196,12 +290,12 @@ extension PanelViewModel {
         }
 
         let ranked = ResultRanker.mergeAndRank(
-            query: term,
+            query: positiveTerm,
             quickActions: quick,
             apps: appResults,
-            recentFiles: recentResults,
-            ocrFiles: ocrResults,
-            spotlightFiles: fileResults,
+            recentFiles: filteredRecent,
+            ocrFiles: combinedVisualAndOCR,
+            spotlightFiles: filteredFiles,
             filter: filter,
             limit: 18
         )

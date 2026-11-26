@@ -52,6 +52,51 @@ extension PanelViewModel {
         }
     }
 
+    /// Isolates the foreground subject of the selected image using Apple Vision and copies transparent PNG data to the pasteboard.
+    func removeBackgroundAndCopySelected() {
+        guard let url = selectedItem?.previewURL,
+              url.isFileURL,
+              VisionTextExtractor.isSupportedImage(url) else { return }
+
+        backgroundRemovalTask?.cancel()
+        isRemovingBackground = true
+        backgroundRemovalTask = Task { [weak self] in
+            let outcome: Result<Data, Error> = await Task.detached(priority: .userInitiated) {
+                Result { try ImageIntelligenceService.removeBackgroundToPNG(from: url) }
+            }.value
+            guard !Task.isCancelled, let self else { return }
+            self.isRemovingBackground = false
+
+            switch outcome {
+            case .success(let pngData):
+                let pb = NSPasteboard.general
+                pb.clearContents()
+                pb.setData(pngData, forType: .png)
+                if let image = NSImage(data: pngData), let tiff = image.tiffRepresentation {
+                    pb.setData(tiff, forType: .tiff)
+                }
+                self.showToast(L10n.tr("panel.toast.bg_removed_copied"), style: .success, duration: 2.2)
+            case .failure(let error):
+                self.showToast(error.localizedDescription, style: .warning, duration: 3.2)
+            }
+        }
+    }
+
+    @discardableResult
+    func activateSmartEntity(_ entity: DetectedSmartEntity) -> Bool {
+        if let url = entity.openURL, (entity.kind == .qrURL || entity.kind == .url) {
+            if NSWorkspace.shared.open(url) {
+                return true
+            }
+        }
+        copyToPasteboard(entity.copyValue)
+        return false
+    }
+
+    func copySmartEntity(_ entity: DetectedSmartEntity) {
+        copyToPasteboard(entity.copyValue)
+    }
+
     func revealSelected() -> Bool {
         guard let item = selectedItem else { return false }
         if let url = item.previewURL, url.isFileURL {

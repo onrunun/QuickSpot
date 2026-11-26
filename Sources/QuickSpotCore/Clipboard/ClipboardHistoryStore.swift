@@ -147,6 +147,34 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         return true
     }
 
+    /// Returns true when `NSPasteboard.general` currently holds raster image data (screenshot / copied image)
+    /// while strictly honoring ConcealedType, TransientType, and password-manager exclusions.
+    public static func hasSafePasteboardImage() -> Bool {
+        let pb = NSPasteboard.general
+        let types = Set((pb.types ?? []).map(\.rawValue))
+        guard shouldRecord(
+            pasteboardTypes: types,
+            sourceBundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        ) else {
+            return false
+        }
+        return types.contains(NSPasteboard.PasteboardType.png.rawValue)
+            || types.contains(NSPasteboard.PasteboardType.tiff.rawValue)
+    }
+
+    /// Reads an in-memory raster image from `NSPasteboard.general` for local reverse visual search (never persisted to disk).
+    public static func readSafePasteboardImage() -> (image: NSImage, cgImage: CGImage)? {
+        guard hasSafePasteboardImage() else { return nil }
+        let pb = NSPasteboard.general
+        let data = pb.data(forType: .png) ?? pb.data(forType: .tiff)
+        guard let data,
+              let nsImage = NSImage(data: data),
+              let cgImage = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return nil
+        }
+        return (nsImage, cgImage)
+    }
+
     /// Records a text snippet, deduplicating by moving identical entries to the top.
     @discardableResult
     public func recordText(_ raw: String, sourceApp: String? = nil, timestamp: TimeInterval = Date().timeIntervalSince1970) -> Bool {

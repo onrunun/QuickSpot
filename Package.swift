@@ -9,9 +9,15 @@ let package = Package(
         .library(name: "QuickSpotCore", targets: ["QuickSpotCore"]),
         .executable(name: "QuickSpotApp", targets: ["QuickSpotApp"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/maralski/gemma-embed-swift.git", exact: "0.4.1")
+    ],
     targets: [
         .target(
             name: "QuickSpotCore",
+            dependencies: [
+                .product(name: "GemmaEmbed", package: "gemma-embed-swift")
+            ],
             resources: [.process("Resources")]
         ),
         .executableTarget(
